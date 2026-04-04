@@ -31,7 +31,8 @@
         }
       ],
       "completion_flag": "flag.ch01.port_record_restored"
-    }
+    },
+    "target_location_id": "location.field.tidal_flats"
   },
   {
     "quest_id": "quest.ch01.harbor_cleanup",
@@ -42,7 +43,9 @@
     "repeatable": false,
     "reporting_npc_id": "npc.ch01.harbor_guard",
     "availability": {
-      "required_quest_ids": ["quest.ch01.missing_port_record"],
+      "required_quest_ids": [
+        "quest.ch01.missing_port_record"
+      ],
       "required_flags": [],
       "min_level": 1
     },
@@ -60,7 +63,8 @@
       "gold": 60,
       "items": [],
       "completion_flag": "flag.ch01.harbor_secured"
-    }
+    },
+    "target_location_id": "location.field.tidal_flats"
   },
   {
     "quest_id": "quest.ch01.rookie_level_trial",
@@ -72,7 +76,9 @@
     "reporting_npc_id": "npc.ch01.guild_clerk",
     "availability": {
       "required_quest_ids": [],
-      "required_flags": ["flag.game.new_game_started"],
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
       "min_level": 8
     },
     "encounter_id": "encounter.ch01.port_wraith",
@@ -89,6 +95,7 @@
       "gold": 30,
       "items": [],
       "completion_flag": "flag.ch01.training_cleared"
-    }
+    },
+    "target_location_id": "location.field.tidal_flats"
   }
 ]

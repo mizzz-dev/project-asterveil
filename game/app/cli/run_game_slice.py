@@ -122,6 +122,24 @@ def _run_quest_board_flow(app: PlayableSliceApplication) -> list[str]:
     return app.accept_quest(selected_quest_id)
 
 
+def _run_travel_flow(app: PlayableSliceApplication) -> list[str]:
+    lines = app.travel_options_lines()
+    for line in lines:
+        print(f"- {line}")
+    options: list[tuple[str, str]] = [("cancel", "移動しない")]
+    for line in lines:
+        if not line.startswith("travel_option:"):
+            continue
+        _, location_id, name, type_part = line.split(":", 3)
+        options.append((location_id, f"{name} ({location_id}) {type_part}"))
+    if len(options) == 1:
+        return ["travel_failed:no_destination"]
+    selected = _choose(options)
+    if selected == "cancel":
+        return ["travel_cancelled"]
+    return app.travel_to(selected)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -161,6 +179,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_inn_flow(app)
             elif selected == "quest_board":
                 logs = _run_quest_board_flow(app)
+            elif selected == "move":
+                logs = _run_travel_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:
