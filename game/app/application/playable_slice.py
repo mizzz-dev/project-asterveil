@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
+from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
@@ -26,6 +27,7 @@ REQUEST_EVENT_ID = "event.ch01.port_request"
 REPORT_EVENT_ID = "event.ch01.port_report"
 ENCOUNTER_ID = "encounter.ch01.port_wraith"
 BASE_SHOP_ID = "shop.astel.general_store"
+BASE_INN_ID = "inn.astel.seaside_inn"
 
 
 @dataclass
@@ -54,6 +56,8 @@ class PlayableSliceApplication:
         self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
+        self._inns = self._app_master_repo.load_inns()
+        self._inn_service = InnService(self._inns, self._equipment_service)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
 
         self.quest_session: QuestSliceSession | None = None
@@ -107,6 +111,7 @@ class PlayableSliceApplication:
             ActionItem("use_item", "アイテムを使う"),
             ActionItem("equip", "装備変更"),
             ActionItem("shop", "ショップに行く"),
+            ActionItem("inn", "宿屋に泊まる"),
         ]
         quest_state = self.quest_session.quest_states.get(QUEST_ID)
 
@@ -143,6 +148,8 @@ class PlayableSliceApplication:
             return self.equipment_overview_lines()
         if action_key == "shop":
             return self.shop_catalog_lines()
+        if action_key == "inn":
+            return self.inn_info_lines()
         if action_key == "talk_npc":
             self.last_event_id = REQUEST_EVENT_ID
             logs = self.quest_session.play_event(REQUEST_EVENT_ID)
@@ -230,6 +237,29 @@ class PlayableSliceApplication:
             quantity=quantity,
         )
         return [result.message]
+
+    def inn_info_lines(self, inn_id: str = BASE_INN_ID) -> list[str]:
+        inn = self._inn_service.get_inn(inn_id)
+        if inn is None:
+            return [f"inn_failed:inn_not_found:{inn_id}"]
+        return [
+            f"inn:{inn.inn_id}:{inn.name}",
+            f"inn_stay_price:{inn.stay_price}",
+            f"gold:{self.inventory_state.get('gold', 0)}",
+            f"inn_policy:revive_knocked_out_members={inn.revive_knocked_out_members}",
+            f"inn_description:{inn.description}",
+        ]
+
+    def stay_at_inn(self, inn_id: str = BASE_INN_ID) -> list[str]:
+        result = self._inn_service.stay(
+            inn_id=inn_id,
+            party_members=self.party_members,
+            inventory_state=self.inventory_state,
+        )
+        lines = [result.message]
+        if result.success:
+            lines.extend(self.party_member_lines())
+        return lines
 
     def equipment_overview_lines(self) -> list[str]:
         lines = ["equipment:members"]

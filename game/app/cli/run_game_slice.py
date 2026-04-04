@@ -63,6 +63,24 @@ def _run_shop_flow(app: PlayableSliceApplication) -> list[str]:
     return app.buy_item(selected_item)
 
 
+def _run_inn_flow(app: PlayableSliceApplication) -> list[str]:
+    info = app.inn_info_lines()
+    for line in info:
+        print(f"- {line}")
+    if any(line.startswith("inn_failed:") for line in info):
+        return []
+
+    selected = _choose(
+        [
+            ("stay", "宿泊する"),
+            ("cancel", "やめる"),
+        ]
+    )
+    if selected == "cancel":
+        return ["inn_cancelled"]
+    return app.stay_at_inn()
+
+
 def _run_equipment_flow(app: PlayableSliceApplication) -> list[str]:
     member_choices = []
     for member_line in app.party_member_lines():
@@ -116,6 +134,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_equipment_flow(app)
             elif selected == "shop":
                 logs = _run_shop_flow(app)
+            elif selected == "inn":
+                logs = _run_inn_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:

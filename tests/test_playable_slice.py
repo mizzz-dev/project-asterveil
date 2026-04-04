@@ -186,6 +186,53 @@ class PlayableSliceTests(unittest.TestCase):
             use_logs = resumed.use_item("item.consumable.focus_drop", "char.main.rion")
             self.assertEqual(use_logs, ["item_used:item.consumable.focus_drop:target=char.main.rion"])
 
+    def test_inn_stay_restores_hp_sp_and_revive_then_persists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.buy_item("equip.armor.leather_jacket")
+            app.equip_item("char.main.rion", "armor", "equip.armor.leather_jacket")
+            app.party_members[0].current_hp = 1
+            app.party_members[0].current_sp = 2
+            app.party_members[0].alive = False
+            app.inventory_state["gold"] = 200
+
+            info = app.inn_info_lines()
+            self.assertTrue(any(line.startswith("inn:inn.astel.seaside_inn") for line in info))
+            self.assertIn("inn_stay_price:120", info)
+
+            stay_logs = app.stay_at_inn()
+            self.assertIn("inn_stay_succeeded:inn.astel.seaside_inn:spent=120:gold=80", stay_logs)
+            self.assertEqual(app.inventory_state["gold"], 80)
+            self.assertTrue(app.party_members[0].alive)
+            self.assertEqual(app.party_members[0].current_hp, 132)
+            self.assertEqual(app.party_members[0].current_sp, 100)
+
+            app.perform_action("save")
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            self.assertEqual(resumed.inventory_state["gold"], 80)
+            self.assertTrue(resumed.party_members[0].alive)
+            self.assertEqual(resumed.party_members[0].current_hp, 132)
+            self.assertEqual(resumed.party_members[0].current_sp, 100)
+
+    def test_inn_stay_failure_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["gold"] = 50
+
+            no_gold = app.stay_at_inn()
+            self.assertEqual(no_gold, ["inn_stay_failed:insufficient_gold:required=120:owned=50"])
+
+            invalid_inn = app.stay_at_inn("inn.unknown")
+            self.assertEqual(invalid_inn, ["inn_stay_failed:inn_not_found:inn.unknown"])
+
+            app.party_members[0].max_hp = 0
+            app.inventory_state["gold"] = 999
+            invalid_party = app.stay_at_inn()
+            self.assertEqual(invalid_party, ["inn_stay_failed:invalid_party:bad_stats:char.main.rion"])
+
     def test_equipment_flow_updates_stats_and_persists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             app = self._build_app(tmp_dir)

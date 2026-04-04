@@ -58,3 +58,5 @@ Vertical Slice 統合ランナー実装。
 パーティ状態確認と消耗品使用の最小ループは `docs/PARTY_MENU_VERTICAL_SLICE.md` を参照。
 
 ショップ/購入フローの最小ループは `docs/SHOP_VERTICAL_SLICE.md` を参照。
+
+宿屋/休息フローの最小ループは `docs/INN_VERTICAL_SLICE.md` を参照。
