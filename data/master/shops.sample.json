@@ -15,6 +15,18 @@
         "price": 45,
         "stock_type": "unlimited",
         "description": "集中力を回復する雫"
+      },
+      {
+        "item_id": "equip.weapon.iron_blade",
+        "price": 240,
+        "stock_type": "unlimited",
+        "description": "重みのある鍛造剣"
+      },
+      {
+        "item_id": "equip.armor.leather_jacket",
+        "price": 180,
+        "stock_type": "unlimited",
+        "description": "軽量な革鎧"
       }
     ]
   }

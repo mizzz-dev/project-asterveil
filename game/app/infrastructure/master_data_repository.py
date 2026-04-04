@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from game.app.application.equipment_service import EquipmentDefinition
 from game.app.application.reward_services import BattleReward, RewardBundle, RewardItem
 
 
@@ -26,6 +27,28 @@ class AppMasterDataRepository:
             normalized["item_id"] = item_id
             items[item_id] = normalized
         return items
+
+    def load_equipment(self) -> dict[str, EquipmentDefinition]:
+        raw = json.loads((self._root / "equipment.sample.json").read_text(encoding="utf-8"))
+        equipment: dict[str, EquipmentDefinition] = {}
+        for entry in raw:
+            equipment_id = str(entry.get("equipment_id") or entry.get("id") or "")
+            if not equipment_id:
+                raise ValueError("equipment.sample.json missing field=equipment_id")
+            slot_type = str(entry.get("slot_type") or entry.get("slot") or "")
+            if not slot_type:
+                raise ValueError(f"equipment.sample.json missing field=slot_type equipment_id={equipment_id}")
+            stat_modifiers = dict(entry.get("stat_modifiers") or {})
+            equipment[equipment_id] = EquipmentDefinition(
+                equipment_id=equipment_id,
+                name=str(entry.get("name") or equipment_id),
+                slot_type=slot_type,
+                stat_modifiers={str(k): int(v) for k, v in stat_modifiers.items()},
+                description=str(entry.get("description", "")),
+                price=int(entry.get("price", 0)),
+                stackable=bool(entry.get("stackable", False)),
+            )
+        return equipment
 
     def load_battle_rewards(self, valid_item_ids: set[str]) -> dict[str, BattleReward]:
         raw = json.loads((self._root / "reward_tables.sample.json").read_text(encoding="utf-8"))

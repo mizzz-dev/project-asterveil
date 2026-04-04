@@ -63,6 +63,24 @@ def _run_shop_flow(app: PlayableSliceApplication) -> list[str]:
     return app.buy_item(selected_item)
 
 
+def _run_equipment_flow(app: PlayableSliceApplication) -> list[str]:
+    member_choices = []
+    for member_line in app.party_member_lines():
+        parts = member_line.split(":")
+        character_id = parts[1]
+        member_choices.append((character_id, member_line))
+    selected_member = _choose(member_choices)
+
+    slot_type = _choose([("weapon", "武器スロット"), ("armor", "防具スロット")])
+    options = app.equippable_options(selected_member, slot_type)
+    if not options:
+        return [f"equip_failed:no_option:{selected_member}:{slot_type}"]
+    selected_equipment = _choose(options)
+    if selected_equipment == "cancel":
+        return ["equip_cancelled"]
+    return app.equip_item(selected_member, slot_type, selected_equipment)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -94,6 +112,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
             selected = _choose(actions)
             if selected == "use_item":
                 logs = _run_use_item_flow(app)
+            elif selected == "equip":
+                logs = _run_equipment_flow(app)
             elif selected == "shop":
                 logs = _run_shop_flow(app)
             else:

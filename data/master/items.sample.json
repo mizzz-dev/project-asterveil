@@ -46,5 +46,41 @@
     "stackable": false,
     "name": "港湾調査報告書",
     "description": "港湾で起きた異変をまとめた報告書。"
+  },
+  {
+    "item_id": "equip.weapon.bronze_blade",
+    "id": "equip.weapon.bronze_blade",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "ブロンズブレード",
+    "description": "駆け出し向けの片手剣。"
+  },
+  {
+    "item_id": "equip.weapon.iron_blade",
+    "id": "equip.weapon.iron_blade",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "アイアンブレード",
+    "description": "重みのある鍛造剣。"
+  },
+  {
+    "item_id": "equip.armor.leather_jacket",
+    "id": "equip.armor.leather_jacket",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "レザージャケット",
+    "description": "軽量で動きやすい革鎧。"
   }
 ]

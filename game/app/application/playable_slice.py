@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
 from game.app.application.item_use_service import ItemUseService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
@@ -49,6 +50,8 @@ class PlayableSliceApplication:
         self._shop_repo = ShopMasterDataRepository(master_root)
         self._battle_executor = battle_executor or build_battle_executor(master_root)
         self._item_definitions = self._app_master_repo.load_items()
+        self._equipment_definitions = self._app_master_repo.load_equipment()
+        self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
@@ -66,6 +69,7 @@ class PlayableSliceApplication:
             "items": {
                 "item.consumable.mini_potion": 3,
                 "item.consumable.focus_drop": 2,
+                "equip.weapon.bronze_blade": 1,
             },
         }
         self.quest_session.world_flags.add("flag.game.new_game_started")
@@ -101,6 +105,7 @@ class PlayableSliceApplication:
             ActionItem("status", "ステータス確認"),
             ActionItem("inventory", "所持品確認"),
             ActionItem("use_item", "アイテムを使う"),
+            ActionItem("equip", "装備変更"),
             ActionItem("shop", "ショップに行く"),
         ]
         quest_state = self.quest_session.quest_states.get(QUEST_ID)
@@ -134,6 +139,8 @@ class PlayableSliceApplication:
             return self._inventory_lines()
         if action_key == "use_item":
             return self._usable_item_lines()
+        if action_key == "equip":
+            return self.equipment_overview_lines()
         if action_key == "shop":
             return self.shop_catalog_lines()
         if action_key == "talk_npc":
@@ -224,13 +231,55 @@ class PlayableSliceApplication:
         )
         return [result.message]
 
+    def equipment_overview_lines(self) -> list[str]:
+        lines = ["equipment:members"]
+        lines.extend(self.party_member_lines())
+        return lines
+
+    def equippable_options(self, character_id: str, slot_type: str) -> list[tuple[str, str]]:
+        member = next((m for m in self.party_members if m.character_id == character_id), None)
+        if member is None or slot_type not in VALID_SLOTS:
+            return []
+        options = [("cancel", "変更しない")]
+        for equipment_id, definition in sorted(self._equipment_definitions.items()):
+            if definition.slot_type != slot_type:
+                continue
+            owned = int(self.inventory_state.get("items", {}).get(equipment_id, 0))
+            equipped_count = sum(
+                1 for unit in self.party_members for eq in unit.equipped.values() if eq == equipment_id
+            )
+            available = max(0, owned - equipped_count)
+            bonus = self._equipment_service.compute_bonuses({slot_type: equipment_id})
+            options.append(
+                (
+                    equipment_id,
+                    f"{definition.name} ({equipment_id}) owned={owned} available={available} "
+                    f"atk+{bonus['atk']} def+{bonus['defense']} hp+{bonus['hp']} spd+{bonus['spd']}",
+                )
+            )
+        return options
+
+    def equip_item(self, character_id: str, slot_type: str, equipment_id: str) -> list[str]:
+        result = self._equipment_service.equip_item(
+            party_members=self.party_members,
+            inventory_state=self.inventory_state,
+            character_id=character_id,
+            slot_type=slot_type,
+            equipment_id=equipment_id,
+        )
+        lines = [result.message]
+        if result.success:
+            lines.extend(self.party_member_lines())
+        return lines
+
     def party_member_lines(self) -> list[str]:
         lines: list[str] = []
         for member in self.party_members:
+            final = self._equipment_service.resolve_final_stats(member)
             lines.append(
                 f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
-                f"hp={member.current_hp}/{member.max_hp}:sp={member.current_sp}/{member.max_sp}:"
-                f"atk={member.atk}:def={member.defense}:spd={member.spd}"
+                f"hp={final['current_hp']}/{final['max_hp']}:sp={final['current_sp']}/{final['max_sp']}:"
+                f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}"
             )
         return lines
 
@@ -258,7 +307,31 @@ class PlayableSliceApplication:
         if quest_state.status != QuestStatus.IN_PROGRESS:
             return [f"hunt_unavailable:status={quest_state.status.value}"]
 
-        battle_result = self._battle_executor(ENCOUNTER_ID)
+        battle_party = []
+        for member in self.party_members:
+            final = self._equipment_service.resolve_final_stats(member)
+            battle_party.append(
+                PartyMemberState(
+                    character_id=member.character_id,
+                    level=member.level,
+                    current_exp=member.current_exp,
+                    next_level_exp=member.next_level_exp,
+                    max_hp=final["max_hp"],
+                    current_hp=final["current_hp"],
+                    max_sp=final["max_sp"],
+                    current_sp=final["current_sp"],
+                    atk=final["atk"],
+                    defense=final["defense"],
+                    spd=final["spd"],
+                    alive=member.alive,
+                    equipped=dict(member.equipped),
+                    unlocked_skill_ids=list(member.unlocked_skill_ids),
+                )
+            )
+        try:
+            battle_result = self._battle_executor(ENCOUNTER_ID, battle_party)
+        except TypeError:
+            battle_result = self._battle_executor(ENCOUNTER_ID)
         logs = [f"battle_finished:{ENCOUNTER_ID}:player_won={battle_result.player_won}"]
         if battle_result.player_won:
             battle_reward = self._battle_rewards.get(ENCOUNTER_ID)

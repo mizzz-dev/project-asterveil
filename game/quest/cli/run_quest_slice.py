@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from game.battle.application.session import BattleSession
 from game.battle.domain.entities import Team
@@ -19,13 +20,27 @@ ENCOUNTER_TO_ENEMY_ID = {
 def build_battle_executor(root: Path):
     battle_repo = MasterDataRepository(root)
     skills = battle_repo.load_skills()
-    player = battle_repo.load_character("char.main.rion")
+    base_player = battle_repo.load_character("char.main.rion")
 
-    def execute(encounter_id: str) -> BattleResult:
+    def execute(encounter_id: str, party_members: list[Any] | None = None) -> BattleResult:
         if encounter_id not in ENCOUNTER_TO_ENEMY_ID:
             raise ValueError(f"Unknown encounter_id: {encounter_id}")
 
         enemy_id = ENCOUNTER_TO_ENEMY_ID[encounter_id]
+        player = base_player
+        if party_members:
+            member = party_members[0]
+            player = base_player.__class__(
+                id=str(getattr(member, "character_id")),
+                team=base_player.team,
+                stats=base_player.stats.__class__(
+                    hp=int(getattr(member, "max_hp")),
+                    atk=int(getattr(member, "atk")),
+                    defense=int(getattr(member, "defense")),
+                    spd=int(getattr(member, "spd")),
+                ),
+                skill_ids=tuple(getattr(member, "unlocked_skill_ids", base_player.skill_ids)),
+            )
         enemy = battle_repo.load_enemy(enemy_id)
         session = BattleSession.from_definitions([player], [enemy], skills)
         session.bind_unit_skills({player.id: player.skill_ids, enemy.id: enemy.skill_ids})

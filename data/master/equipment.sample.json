@@ -1,8 +1,29 @@
 [
   {
-    "id": "equip.weapon.bronze_blade",
-    "slot": "weapon",
-    "rarity": "common",
-    "stat_modifiers": { "atk": 4 }
+    "equipment_id": "equip.weapon.bronze_blade",
+    "name": "ブロンズブレード",
+    "slot_type": "weapon",
+    "stat_modifiers": { "atk": 4 },
+    "description": "駆け出し向けの片手剣。",
+    "price": 120,
+    "stackable": false
+  },
+  {
+    "equipment_id": "equip.weapon.iron_blade",
+    "name": "アイアンブレード",
+    "slot_type": "weapon",
+    "stat_modifiers": { "atk": 8, "spd": -1 },
+    "description": "重みのある鍛造剣。",
+    "price": 240,
+    "stackable": false
+  },
+  {
+    "equipment_id": "equip.armor.leather_jacket",
+    "name": "レザージャケット",
+    "slot_type": "armor",
+    "stat_modifiers": { "def": 3, "hp": 12 },
+    "description": "軽量で動きやすい革鎧。",
+    "price": 180,
+    "stackable": false
   }
 ]
