@@ -1,0 +1,8 @@
+[
+  {
+    "id": "equip.weapon.bronze_blade",
+    "slot": "weapon",
+    "rarity": "common",
+    "stat_modifiers": { "atk": 4 }
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "quest.ch01.missing_port_record",
+    "quest_type": "main",
+    "chapter": 1,
+    "prerequisites": [],
+    "objectives": [
+      { "type": "talk", "target_id": "npc.port.elder", "count": 1 },
+      { "type": "battle_win", "target_id": "enemy.ch01.port_wraith", "count": 1 }
+    ],
+    "rewards": { "exp": 120, "gold": 80, "item_ids": ["item.material.memory_shard"] }
+  }
+]

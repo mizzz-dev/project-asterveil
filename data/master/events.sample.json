@@ -1,0 +1,11 @@
+[
+  {
+    "id": "event.ch01.port_intro",
+    "scene_id": "scene.ch01.port_ruins",
+    "lines": [
+      { "speaker": "char.main.rion", "text_key": "evt.ch01.port_intro.001", "emotion": "shock" }
+    ],
+    "triggers": ["quest.ch01.missing_port_record:accepted"],
+    "next_event_ids": ["event.ch01.first_battle"]
+  }
+]

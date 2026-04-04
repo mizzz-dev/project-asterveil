@@ -1,0 +1,13 @@
+[
+  {
+    "id": "skill.striker.flare_slash",
+    "target_type": "single",
+    "cost": { "sp": 12, "cooldown": 0 },
+    "effect_blocks": [
+      { "type": "damage", "element": "fire", "power": 1.4 }
+    ],
+    "weight": 18,
+    "break_power": 20,
+    "precast_warning": false
+  }
+]
