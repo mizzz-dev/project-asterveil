@@ -1,12 +1,50 @@
 [
   {
-    "id": "item.material.memory_shard",
-    "category": "material",
-    "name": "記憶片"
+    "item_id": "item.consumable.mini_potion",
+    "id": "item.consumable.mini_potion",
+    "category": "consumable",
+    "item_type": "consumable",
+    "target_scope": "single_ally",
+    "effect_type": "recover_hp",
+    "effect_value": 40,
+    "stackable": true,
+    "name": "ミニポーション",
+    "description": "味方単体のHPを40回復する。"
   },
   {
+    "item_id": "item.consumable.focus_drop",
+    "id": "item.consumable.focus_drop",
+    "category": "consumable",
+    "item_type": "consumable",
+    "target_scope": "single_ally",
+    "effect_type": "recover_sp",
+    "effect_value": 25,
+    "stackable": true,
+    "name": "フォーカスドロップ",
+    "description": "味方単体のSPを25回復する。"
+  },
+  {
+    "item_id": "item.material.memory_shard",
+    "id": "item.material.memory_shard",
+    "category": "material",
+    "item_type": "material",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": true,
+    "name": "記憶片",
+    "description": "古い遺構で見つかる断片。"
+  },
+  {
+    "item_id": "item.evidence.port_report",
     "id": "item.evidence.port_report",
     "category": "evidence",
-    "name": "港湾調査報告書"
+    "item_type": "evidence",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "港湾調査報告書",
+    "description": "港湾で起きた異変をまとめた報告書。"
   }
 ]

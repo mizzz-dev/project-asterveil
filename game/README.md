@@ -53,3 +53,5 @@ Vertical Slice 統合ランナー実装。
 実行例: `python -m game.app.cli.run_game_slice`
 
 報酬/成長/所持品の詳細は `docs/PROGRESSION_VERTICAL_SLICE.md` を参照。
+
+パーティ状態確認と消耗品使用の最小ループは `docs/PARTY_MENU_VERTICAL_SLICE.md` を参照。

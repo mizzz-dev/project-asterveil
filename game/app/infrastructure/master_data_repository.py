@@ -14,10 +14,17 @@ class AppMasterDataRepository:
         raw = json.loads((self._root / "items.sample.json").read_text(encoding="utf-8"))
         items: dict[str, dict] = {}
         for item in raw:
-            for field in ["id", "category", "name"]:
+            item_id = str(item.get("item_id") or item.get("id") or "")
+            if not item_id:
+                raise ValueError("items.sample.json missing field=item_id")
+            for field in ["category", "name"]:
                 if field not in item:
-                    raise ValueError(f"items.sample.json missing field={field} item={item.get('id')}")
-            items[item["id"]] = item
+                    raise ValueError(f"items.sample.json missing field={field} item={item_id}")
+
+            normalized = dict(item)
+            normalized["id"] = item_id
+            normalized["item_id"] = item_id
+            items[item_id] = normalized
         return items
 
     def load_battle_rewards(self, valid_item_ids: set[str]) -> dict[str, BattleReward]:

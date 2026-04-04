@@ -22,6 +22,27 @@ def _choose(items: list[tuple[str, str]]) -> str:
         return items[index - 1][0]
 
 
+def _run_use_item_flow(app: PlayableSliceApplication) -> list[str]:
+    item_ids = app.usable_item_ids()
+    if not item_ids:
+        return ["usable_item:none"]
+
+    item_choices = []
+    for item_id in item_ids:
+        amount = app.inventory_state.get("items", {}).get(item_id, 0)
+        item_choices.append((item_id, f"{item_id} x{amount}"))
+    selected_item_id = _choose(item_choices)
+
+    member_choices = []
+    for member_line in app.party_member_lines():
+        parts = member_line.split(":")
+        character_id = parts[1]
+        member_choices.append((character_id, member_line))
+    selected_target = _choose(member_choices)
+
+    return app.use_item(selected_item_id, selected_target)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -51,7 +72,10 @@ def run_playable_vertical_slice(save_path: Path) -> int:
             print("\n--- 拠点メニュー ---")
             actions = [(item.key, item.label) for item in app.available_actions()]
             selected = _choose(actions)
-            logs = app.perform_action(selected)
+            if selected == "use_item":
+                logs = _run_use_item_flow(app)
+            else:
+                logs = app.perform_action(selected)
             for log in logs:
                 print(f"- {log}")
             if selected == "exit":
