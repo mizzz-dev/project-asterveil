@@ -48,5 +48,8 @@ Vertical Slice 統合ランナー実装。
 
 - `game/app/application/`: タイトル導線・ハブメニュー・Battle/Quest/Save連携のオーケストレーション
 - `game/app/cli/`: 最小プレイアブル体験を確認する CLI エントリーポイント
+- `game/app/infrastructure/`: Playable Slice 向けマスターデータ読込（報酬・アイテム）
 
 実行例: `python -m game.app.cli.run_game_slice`
+
+報酬/成長/所持品の詳細は `docs/PROGRESSION_VERTICAL_SLICE.md` を参照。

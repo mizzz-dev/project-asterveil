@@ -10,8 +10,15 @@
       {
         "character_id": "char.main.rion",
         "level": 8,
+        "current_exp": 220,
+        "next_level_exp": 450,
+        "max_hp": 132,
         "current_hp": 108,
+        "max_sp": 104,
         "current_sp": 88,
+        "atk": 26,
+        "defense": 17,
+        "spd": 19,
         "alive": true,
         "equipped": {
           "weapon": "equip.weapon.bronze_blade"

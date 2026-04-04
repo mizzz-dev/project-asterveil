@@ -67,6 +67,9 @@ class QuestSliceSession:
                 f"quest_completed:{quest_id}",
                 f"reward_granted:{quest_id}:exp={reward.exp}:gold={reward.gold}",
             ]
+            if reward.items:
+                item_log = ",".join(f"{item_id}x{amount}" for item_id, amount in reward.items)
+                logs.append(f"reward_items:{quest_id}:{item_log}")
             if reward.completion_flag:
                 self.world_flags.add(reward.completion_flag)
                 logs.append(f"flag_set:{reward.completion_flag}")

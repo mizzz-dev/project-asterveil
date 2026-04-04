@@ -1,0 +1,1 @@
+"""App slice infrastructure adapters."""

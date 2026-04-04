@@ -23,6 +23,7 @@ class ObjectiveDefinition:
 class QuestReward:
     exp: int
     gold: int
+    items: tuple[tuple[str, int], ...] = tuple()
     completion_flag: str | None = None
 
 

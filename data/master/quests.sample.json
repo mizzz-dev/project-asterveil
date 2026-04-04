@@ -17,6 +17,12 @@
     "reward": {
       "exp": 120,
       "gold": 80,
+      "items": [
+        {
+          "item_id": "item.evidence.port_report",
+          "amount": 1
+        }
+      ],
       "completion_flag": "flag.ch01.port_record_restored"
     }
   }

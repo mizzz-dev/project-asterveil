@@ -33,8 +33,15 @@ class SaveSliceTests(unittest.TestCase):
             PartyMemberState(
                 character_id="char.main.rion",
                 level=8,
+                current_exp=40,
+                next_level_exp=450,
+                max_hp=120,
                 current_hp=111,
+                max_sp=100,
                 current_sp=76,
+                atk=24,
+                defense=16,
+                spd=18,
                 alive=True,
                 equipped={"weapon": "equip.weapon.bronze_blade"},
                 unlocked_skill_ids=["skill.striker.flare_slash"],
@@ -67,6 +74,7 @@ class SaveSliceTests(unittest.TestCase):
         self.assertEqual(quest_state.status, QuestStatus.READY_TO_COMPLETE)
         self.assertIn("flag.ch01.port_wraith_battle_seen", resumed.world_flags)
         self.assertEqual(loaded.party_members[0].current_hp, 111)
+        self.assertEqual(loaded.party_members[0].current_exp, 40)
 
         resumed.play_event("event.ch01.port_report")
         self.assertEqual(quest_state.status, QuestStatus.COMPLETED)

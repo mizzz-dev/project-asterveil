@@ -1,0 +1,12 @@
+[
+  {
+    "id": "item.material.memory_shard",
+    "category": "material",
+    "name": "記憶片"
+  },
+  {
+    "id": "item.evidence.port_report",
+    "category": "evidence",
+    "name": "港湾調査報告書"
+  }
+]

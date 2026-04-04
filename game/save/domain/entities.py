@@ -19,9 +19,16 @@ class PlayerProfileState:
 class PartyMemberState:
     character_id: str
     level: int
-    current_hp: int
-    current_sp: int
-    alive: bool
+    current_exp: int = 0
+    next_level_exp: int = 100
+    max_hp: int = 1
+    current_hp: int = 1
+    max_sp: int = 0
+    current_sp: int = 0
+    atk: int = 1
+    defense: int = 1
+    spd: int = 1
+    alive: bool = True
     equipped: dict[str, str] = field(default_factory=dict)
     unlocked_skill_ids: list[str] = field(default_factory=list)
 
@@ -57,8 +64,15 @@ class SaveData:
                     {
                         "character_id": member.character_id,
                         "level": member.level,
+                        "current_exp": member.current_exp,
+                        "next_level_exp": member.next_level_exp,
+                        "max_hp": member.max_hp,
                         "current_hp": member.current_hp,
+                        "max_sp": member.max_sp,
                         "current_sp": member.current_sp,
+                        "atk": member.atk,
+                        "defense": member.defense,
+                        "spd": member.spd,
                         "alive": member.alive,
                         "equipped": member.equipped,
                         "unlocked_skill_ids": member.unlocked_skill_ids,
@@ -104,12 +118,21 @@ class SaveData:
             for field_name in ["character_id", "level", "current_hp", "current_sp", "alive"]:
                 if field_name not in member:
                     raise ValueError(f"party_member missing field={field_name}")
+            max_hp = int(member.get("max_hp", member["current_hp"]))
+            max_sp = int(member.get("max_sp", member["current_sp"]))
             party_members.append(
                 PartyMemberState(
                     character_id=str(member["character_id"]),
                     level=int(member["level"]),
+                    current_exp=int(member.get("current_exp", 0)),
+                    next_level_exp=int(member.get("next_level_exp", 100)),
+                    max_hp=max_hp,
                     current_hp=int(member["current_hp"]),
+                    max_sp=max_sp,
                     current_sp=int(member["current_sp"]),
+                    atk=int(member.get("atk", 1)),
+                    defense=int(member.get("defense", 1)),
+                    spd=int(member.get("spd", 1)),
                     alive=bool(member["alive"]),
                     equipped=dict(member.get("equipped", {})),
                     unlocked_skill_ids=[str(skill_id) for skill_id in member.get("unlocked_skill_ids", [])],
