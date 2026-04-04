@@ -58,6 +58,8 @@ class PlayableSliceTests(unittest.TestCase):
             losing_app.accept_quest("quest.ch01.missing_port_record")
 
             self.assertEqual(losing_app.quest_state().status, QuestStatus.IN_PROGRESS)
+            self.assertNotIn("hunt", {item.key for item in losing_app.available_actions()})
+            losing_app.travel_to("location.field.tidal_flats")
             self.assertIn("hunt", {item.key for item in losing_app.available_actions()})
 
             winning_app = self._build_app(tmp_dir, win=True)
@@ -65,6 +67,7 @@ class PlayableSliceTests(unittest.TestCase):
             winning_app.party_members = losing_app.party_members
             winning_app.last_event_id = losing_app.last_event_id
             winning_app.inventory_state = losing_app.inventory_state
+            winning_app.location_state = losing_app.location_state
 
             hunt_logs = winning_app.perform_action("hunt")
             self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", hunt_logs)
@@ -285,6 +288,7 @@ class PlayableSliceTests(unittest.TestCase):
             app.buy_item("equip.armor.leather_jacket")
             equip = app.equip_item("char.main.rion", "armor", "equip.armor.leather_jacket")
             self.assertIn("equip_succeeded:char.main.rion:armor:equip.armor.leather_jacket", equip)
+            app.travel_to("location.field.tidal_flats")
             app.perform_action("hunt")
             self.assertEqual(captured["atk"], 28)
             self.assertEqual(captured["defense"], 19)
@@ -312,6 +316,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=locked" in line for line in board_lines))
 
             self.assertEqual(app.accept_quest("quest.ch01.missing_port_record"), ["quest_accepted:quest.ch01.missing_port_record"])
+            app.travel_to("location.field.tidal_flats")
             app.perform_action("hunt")
             app.perform_action("report")
 

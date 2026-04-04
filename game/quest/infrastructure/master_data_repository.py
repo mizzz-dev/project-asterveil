@@ -62,6 +62,7 @@ class QuestMasterDataRepository:
                 category=quest.get("category"),
                 repeatable=bool(quest.get("repeatable", False)),
                 encounter_id=quest.get("encounter_id"),
+                target_location_id=quest.get("target_location_id"),
             )
         return definitions
 

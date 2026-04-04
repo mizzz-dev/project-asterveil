@@ -10,6 +10,9 @@ from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
+from game.location.application.travel_service import TravelService
+from game.location.domain.entities import LocationState
+from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
 from game.quest.application.session import QuestSliceSession
 from game.quest.cli.run_quest_slice import build_battle_executor
 from game.quest.domain.entities import BattleResult, QuestBoardStatus, QuestState, QuestStatus
@@ -24,6 +27,7 @@ from game.shop.infrastructure.master_data_repository import ShopMasterDataReposi
 
 BASE_SHOP_ID = "shop.astel.general_store"
 BASE_INN_ID = "inn.astel.seaside_inn"
+HUB_LOCATION_ID = "location.town.astel"
 
 
 @dataclass
@@ -46,6 +50,7 @@ class PlayableSliceApplication:
         self._reward_service = RewardApplicationService()
         self._item_use_service = ItemUseService()
         self._shop_repo = ShopMasterDataRepository(master_root)
+        self._location_repo = LocationMasterDataRepository(master_root)
         self._battle_executor = battle_executor or build_battle_executor(master_root)
         self._item_definitions = self._app_master_repo.load_items()
         self._equipment_definitions = self._app_master_repo.load_equipment()
@@ -56,11 +61,13 @@ class PlayableSliceApplication:
         self._inn_service = InnService(self._inns, self._equipment_service)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
         self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
+        self._travel_service = TravelService(self._location_repo.load_locations(), hub_location_id=HUB_LOCATION_ID)
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
         self.last_event_id: str | None = None
         self.inventory_state: dict = {}
+        self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
         self.quest_session = self._build_session()
@@ -74,6 +81,8 @@ class PlayableSliceApplication:
             },
         }
         self.quest_session.world_flags.add("flag.game.new_game_started")
+        self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
+        self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self.last_event_id = "event.system.new_game_intro"
 
         return [
@@ -96,6 +105,14 @@ class PlayableSliceApplication:
         self.last_event_id = self._save_service.restore_quest_session(self.quest_session, save_data)
         self.party_members = save_data.party_members
         self.inventory_state = save_data.inventory_state or {"gold": 0, "items": {}}
+        location_meta = save_data.meta.get("location_state", {})
+        self.location_state = LocationState(
+            current_location_id=str(location_meta.get("current_location_id", HUB_LOCATION_ID)),
+            unlocked_location_ids=set(location_meta.get("unlocked_location_ids", [HUB_LOCATION_ID])),
+        )
+        if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
+            self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
+        self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         return True, "セーブデータをロードしました。"
 
     def available_actions(self) -> list[ActionItem]:
@@ -110,8 +127,10 @@ class PlayableSliceApplication:
             ActionItem("shop", "ショップに行く"),
             ActionItem("inn", "宿屋に泊まる"),
             ActionItem("quest_board", "クエストボードを見る"),
+            ActionItem("move", "移動する"),
+            ActionItem("current_location", "現在地を確認する"),
         ]
-        if self._has_active_quest():
+        if self._has_active_quest() and self._location_can_hunt():
             items.append(ActionItem("hunt", "討伐へ進む"))
         if self._has_reportable_quest():
             items.append(ActionItem("report", "報告する"))
@@ -136,6 +155,10 @@ class PlayableSliceApplication:
             return self._quest_lines()
         if action_key == "quest_board":
             return self.quest_board_lines()
+        if action_key == "move":
+            return self.travel_options_lines()
+        if action_key == "current_location":
+            return self.current_location_lines()
         if action_key == "inventory":
             return self._inventory_lines()
         if action_key == "use_item":
@@ -220,6 +243,8 @@ class PlayableSliceApplication:
         if quest_reward.completion_flag:
             self.quest_session.world_flags.add(quest_reward.completion_flag)
             logs.append(f"flag_set:{quest_reward.completion_flag}")
+        for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
+            logs.append(f"location_unlocked:{unlocked}")
         self.last_event_id = f"event.system.quest_report:{quest_id}"
         return logs
 
@@ -233,9 +258,40 @@ class PlayableSliceApplication:
             last_event_id=self.last_event_id,
             play_time_sec=0,
             inventory_state=self.inventory_state,
-            meta={"mode": "playable_vertical_slice"},
+            meta={
+                "mode": "playable_vertical_slice",
+                "location_state": {
+                    "current_location_id": self.location_state.current_location_id,
+                    "unlocked_location_ids": sorted(self.location_state.unlocked_location_ids),
+                },
+            },
         )
         self._save_repo.save(save_data)
+
+    def travel_options_lines(self) -> list[str]:
+        current = self._travel_service.location(self.location_state.current_location_id)
+        lines = [f"current_location:{self.location_state.current_location_id}:{current.name if current else 'unknown'}"]
+        for destination in self._travel_service.list_destinations(self.location_state):
+            lines.append(
+                f"travel_option:{destination.location_id}:{destination.name}:type={destination.location_type}"
+            )
+        return lines
+
+    def travel_to(self, location_id: str) -> list[str]:
+        result = self._travel_service.travel_to(self.location_state, location_id)
+        if not result.success:
+            return [result.message]
+        destination = self._travel_service.location(location_id)
+        return [result.message, f"current_location:{location_id}:{destination.name if destination else location_id}"]
+
+    def current_location_lines(self) -> list[str]:
+        definition = self._travel_service.location(self.location_state.current_location_id)
+        if definition is None:
+            return [f"current_location:unknown:{self.location_state.current_location_id}"]
+        return [
+            f"current_location:{definition.location_id}:{definition.name}:type={definition.location_type}",
+            f"location_description:{definition.description}",
+        ]
 
     def use_item(self, item_id: str, target_character_id: str) -> list[str]:
         result = self._item_use_service.use_item(
@@ -365,7 +421,21 @@ class PlayableSliceApplication:
         if quest_id is None:
             return ["hunt_unavailable:no_active_quest"]
         quest_definition = self.quest_session.quest_service.definitions[quest_id]
-        encounter_id = quest_definition.encounter_id or "encounter.ch01.port_wraith"
+        current_location = self._travel_service.location(self.location_state.current_location_id)
+        if current_location is None:
+            return ["hunt_unavailable:unknown_current_location"]
+        if current_location.location_type == "town":
+            return ["hunt_unavailable:town_location"]
+
+        target_location_id = self._travel_service.resolve_quest_target_location_id(
+            quest_definition.encounter_id,
+            quest_definition.target_location_id,
+        )
+        if target_location_id and target_location_id != self.location_state.current_location_id:
+            return [f"hunt_unavailable:wrong_location:required={target_location_id}"]
+        encounter_id = current_location.default_encounter_id or quest_definition.encounter_id
+        if encounter_id is None:
+            return ["hunt_unavailable:no_encounter"]
 
         battle_party = []
         for member in self.party_members:
@@ -411,6 +481,9 @@ class PlayableSliceApplication:
 
         self.last_event_id = f"event.system.hunt:{quest_id}"
         self.quest_session.world_flags.add(f"flag.quest.battle_seen:{quest_id}")
+        if current_location.can_return_to_hub:
+            self.location_state.current_location_id = HUB_LOCATION_ID
+            logs.append(f"returned_to_hub:{HUB_LOCATION_ID}")
         return logs
 
     def _build_session(self) -> QuestSliceSession:
@@ -445,7 +518,7 @@ class PlayableSliceApplication:
             raise ValueError("ゲームが開始されていません。")
 
         lines = [
-            "location:港町アステル",
+            f"location:{self.location_state.current_location_id}",
             f"party_members:{len(self.party_members)}",
             f"last_event_id:{self.last_event_id}",
             f"gold:{self.inventory_state.get('gold', 0)}",
@@ -518,6 +591,12 @@ class PlayableSliceApplication:
 
     def _has_active_quest(self) -> bool:
         return self._active_quest_id() is not None
+
+    def _location_can_hunt(self) -> bool:
+        current = self._travel_service.location(self.location_state.current_location_id)
+        if current is None:
+            return False
+        return current.location_type != "town"
 
     def _has_reportable_quest(self) -> bool:
         return self._ready_to_complete_quest_id() is not None

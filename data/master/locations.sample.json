@@ -1,0 +1,44 @@
+[
+  {
+    "location_id": "location.town.astel",
+    "name": "港町アステル",
+    "location_type": "town",
+    "description": "冒険の拠点となる港町。",
+    "accessible_from": [
+      "location.town.astel",
+      "location.field.tidal_flats",
+      "location.dungeon.sunken_storehouse"
+    ],
+    "available_encounter_ids": [],
+    "can_return_to_hub": true
+  },
+  {
+    "location_id": "location.field.tidal_flats",
+    "name": "潮だまりの干潟",
+    "location_type": "field",
+    "description": "亡霊が出没する近海の干潟。",
+    "accessible_from": [
+      "location.town.astel"
+    ],
+    "default_encounter_id": "encounter.ch01.port_wraith",
+    "available_encounter_ids": [
+      "encounter.ch01.port_wraith"
+    ],
+    "can_return_to_hub": true
+  },
+  {
+    "location_id": "location.dungeon.sunken_storehouse",
+    "name": "沈んだ倉庫跡",
+    "location_type": "dungeon",
+    "description": "港外れの封鎖区域。今は立ち入り禁止。",
+    "accessible_from": [
+      "location.town.astel"
+    ],
+    "available_encounter_ids": [
+      "encounter.ch01.port_wraith"
+    ],
+    "default_encounter_id": "encounter.ch01.port_wraith",
+    "can_return_to_hub": true,
+    "unlock_condition": "flag.ch01.port_record_restored"
+  }
+]

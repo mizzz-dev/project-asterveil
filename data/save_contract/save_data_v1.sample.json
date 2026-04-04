@@ -24,14 +24,18 @@
           "weapon": "equip.weapon.iron_blade",
           "armor": "equip.armor.leather_jacket"
         },
-        "unlocked_skill_ids": ["skill.striker.flare_slash"]
+        "unlocked_skill_ids": [
+          "skill.striker.flare_slash"
+        ]
       }
     ]
   },
   "quest_state": {
     "quest.ch01.missing_port_record": {
       "status": "in_progress",
-      "objective_progress": [1],
+      "objective_progress": [
+        1
+      ],
       "reward_claimed": false
     }
   },
@@ -52,6 +56,13 @@
     }
   },
   "meta": {
-    "save_slot": "slot_01"
+    "save_slot": "slot_01",
+    "location_state": {
+      "current_location_id": "location.town.astel",
+      "unlocked_location_ids": [
+        "location.town.astel",
+        "location.field.tidal_flats"
+      ]
+    }
   }
 }

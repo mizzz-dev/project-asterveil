@@ -54,6 +54,7 @@ class QuestDefinition:
     category: str | None = None
     repeatable: bool = False
     encounter_id: str | None = None
+    target_location_id: str | None = None
 
 
 @dataclass
