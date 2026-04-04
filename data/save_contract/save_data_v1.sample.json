@@ -21,7 +21,8 @@
         "spd": 19,
         "alive": true,
         "equipped": {
-          "weapon": "equip.weapon.bronze_blade"
+          "weapon": "equip.weapon.iron_blade",
+          "armor": "equip.armor.leather_jacket"
         },
         "unlocked_skill_ids": ["skill.striker.flare_slash"]
       }
@@ -44,7 +45,10 @@
   "inventory_state": {
     "gold": 320,
     "items": {
-      "item.material.memory_shard": 3
+      "item.material.memory_shard": 3,
+      "equip.weapon.bronze_blade": 1,
+      "equip.weapon.iron_blade": 1,
+      "equip.armor.leather_jacket": 1
     }
   },
   "meta": {

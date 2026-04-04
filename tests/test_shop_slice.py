@@ -15,7 +15,15 @@ class ShopSliceTests(unittest.TestCase):
 
         self.assertIn("shop.astel.general_store", shops)
         entry_ids = {entry.item_id for entry in shops["shop.astel.general_store"].entries}
-        self.assertEqual(entry_ids, {"item.consumable.mini_potion", "item.consumable.focus_drop"})
+        self.assertEqual(
+            entry_ids,
+            {
+                "item.consumable.mini_potion",
+                "item.consumable.focus_drop",
+                "equip.weapon.iron_blade",
+                "equip.armor.leather_jacket",
+            },
+        )
 
     def test_purchase_success_and_failures(self) -> None:
         shops = {

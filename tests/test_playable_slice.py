@@ -144,6 +144,7 @@ class PlayableSliceTests(unittest.TestCase):
             catalog = app.perform_action("shop")
             self.assertTrue(any(line.startswith("shop:shop.astel.general_store") for line in catalog))
             self.assertTrue(any(line.startswith("shop_item:item.consumable.mini_potion") for line in catalog))
+            self.assertTrue(any(line.startswith("shop_item:equip.weapon.iron_blade") for line in catalog))
 
             result = app.buy_item("item.consumable.mini_potion")
             self.assertEqual(
@@ -184,6 +185,60 @@ class PlayableSliceTests(unittest.TestCase):
             resumed.party_members[0].current_sp = 40
             use_logs = resumed.use_item("item.consumable.focus_drop", "char.main.rion")
             self.assertEqual(use_logs, ["item_used:item.consumable.focus_drop:target=char.main.rion"])
+
+    def test_equipment_flow_updates_stats_and_persists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+
+            bought = app.buy_item("equip.weapon.iron_blade")
+            self.assertEqual(
+                bought,
+                ["purchase_succeeded:shop.astel.general_store:equip.weapon.iron_blade:qty=1:spent=240:gold=60"],
+            )
+            equip_logs = app.equip_item("char.main.rion", "weapon", "equip.weapon.iron_blade")
+            self.assertIn("equip_succeeded:char.main.rion:weapon:equip.weapon.iron_blade", equip_logs)
+            self.assertTrue(any("atk=32" in line for line in equip_logs))
+
+            app.perform_action("save")
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            status = resumed.perform_action("status")
+            self.assertTrue(any("equip.weapon.iron_blade" in line for line in status))
+            self.assertTrue(any("atk=32" in line for line in status))
+
+    def test_equipment_failure_cases_and_battle_reflection(self) -> None:
+        captured: dict[str, int] = {}
+
+        def battle_executor(encounter_id: str, party_members=None) -> BattleResult:
+            self.assertEqual(encounter_id, "encounter.ch01.port_wraith")
+            if party_members:
+                captured["atk"] = party_members[0].atk
+                captured["defense"] = party_members[0].defense
+            return BattleResult(encounter_id=encounter_id, player_won=False, defeated_enemy_ids=tuple())
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = PlayableSliceApplication(
+                master_root=Path("data/master"),
+                save_file_path=Path(tmp_dir) / "slot_01.json",
+                battle_executor=battle_executor,
+            )
+            app.new_game()
+            app.perform_action("talk_npc")
+
+            invalid_id = app.equip_item("char.main.rion", "weapon", "equip.weapon.unknown")
+            self.assertEqual(invalid_id, ["equip_failed:unknown_equipment:equip.weapon.unknown"])
+            invalid_slot = app.equip_item("char.main.rion", "armor", "equip.weapon.bronze_blade")
+            self.assertEqual(invalid_slot, ["equip_failed:slot_mismatch:armor:equip.weapon.bronze_blade"])
+            no_stock = app.equip_item("char.main.rion", "armor", "equip.armor.leather_jacket")
+            self.assertEqual(no_stock, ["equip_failed:insufficient_stock:equip.armor.leather_jacket"])
+
+            app.buy_item("equip.armor.leather_jacket")
+            equip = app.equip_item("char.main.rion", "armor", "equip.armor.leather_jacket")
+            self.assertIn("equip_succeeded:char.main.rion:armor:equip.armor.leather_jacket", equip)
+            app.perform_action("hunt")
+            self.assertEqual(captured["atk"], 28)
+            self.assertEqual(captured["defense"], 19)
 
     def test_continue_detects_missing_or_broken_save(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
