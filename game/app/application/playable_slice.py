@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from game.app.application.item_use_service import ItemUseService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.quest.application.session import QuestSliceSession
@@ -41,6 +42,7 @@ class PlayableSliceApplication:
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._reward_service = RewardApplicationService()
+        self._item_use_service = ItemUseService()
         self._battle_executor = battle_executor or build_battle_executor(master_root)
         self._item_definitions = self._app_master_repo.load_items()
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
@@ -53,7 +55,13 @@ class PlayableSliceApplication:
     def new_game(self) -> list[str]:
         self.quest_session = self._build_session()
         self.party_members = self._build_initial_party()
-        self.inventory_state = {"gold": 0, "items": {}}
+        self.inventory_state = {
+            "gold": 0,
+            "items": {
+                "item.consumable.mini_potion": 3,
+                "item.consumable.focus_drop": 2,
+            },
+        }
         self.quest_session.world_flags.add("flag.game.new_game_started")
         self.last_event_id = "event.system.new_game_intro"
 
@@ -83,7 +91,11 @@ class PlayableSliceApplication:
         if self.quest_session is None:
             return []
 
-        items = [ActionItem("status", "ステータス確認"), ActionItem("inventory", "所持品確認")]
+        items = [
+            ActionItem("status", "ステータス確認"),
+            ActionItem("inventory", "所持品確認"),
+            ActionItem("use_item", "アイテムを使う"),
+        ]
         quest_state = self.quest_session.quest_states.get(QUEST_ID)
 
         if quest_state is None:
@@ -113,6 +125,8 @@ class PlayableSliceApplication:
             return self._quest_lines()
         if action_key == "inventory":
             return self._inventory_lines()
+        if action_key == "use_item":
+            return self._usable_item_lines()
         if action_key == "talk_npc":
             self.last_event_id = REQUEST_EVENT_ID
             logs = self.quest_session.play_event(REQUEST_EVENT_ID)
@@ -168,6 +182,40 @@ class PlayableSliceApplication:
             meta={"mode": "playable_vertical_slice"},
         )
         self._save_repo.save(save_data)
+
+    def use_item(self, item_id: str, target_character_id: str) -> list[str]:
+        result = self._item_use_service.use_item(
+            item_id=item_id,
+            target_character_id=target_character_id,
+            item_definitions=self._item_definitions,
+            party_members=self.party_members,
+            inventory_state=self.inventory_state,
+        )
+        return [result.message]
+
+    def party_member_lines(self) -> list[str]:
+        lines: list[str] = []
+        for member in self.party_members:
+            lines.append(
+                f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
+                f"hp={member.current_hp}/{member.max_hp}:sp={member.current_sp}/{member.max_sp}:"
+                f"atk={member.atk}:def={member.defense}:spd={member.spd}"
+            )
+        return lines
+
+    def usable_item_ids(self) -> list[str]:
+        items = self.inventory_state.get("items", {})
+        ids: list[str] = []
+        for item_id, amount in sorted(items.items()):
+            definition = self._item_definitions.get(item_id)
+            if definition is None:
+                continue
+            if definition.get("category") != "consumable":
+                continue
+            if int(amount) <= 0:
+                continue
+            ids.append(item_id)
+        return ids
 
     def _run_hunt(self) -> list[str]:
         if self.quest_session is None:
@@ -239,12 +287,7 @@ class PlayableSliceApplication:
             f"gold:{self.inventory_state.get('gold', 0)}",
             f"world_flags:{sorted(self.quest_session.world_flags)}",
         ]
-        for member in self.party_members:
-            lines.append(
-                f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
-                f"hp={member.current_hp}/{member.max_hp}:sp={member.current_sp}/{member.max_sp}:"
-                f"atk={member.atk}:def={member.defense}:spd={member.spd}"
-            )
+        lines.extend(self.party_member_lines())
         lines.extend(self._quest_lines())
         return lines
 
@@ -257,6 +300,21 @@ class PlayableSliceApplication:
         for item_id, amount in sorted(items.items()):
             item_name = self._item_definitions.get(item_id, {}).get("name", item_id)
             lines.append(f"item:{item_id}:{item_name}:x{amount}")
+        return lines
+
+    def _usable_item_lines(self) -> list[str]:
+        item_ids = self.usable_item_ids()
+        if not item_ids:
+            return ["usable_item:none"]
+
+        lines: list[str] = []
+        items = self.inventory_state.get("items", {})
+        for item_id in item_ids:
+            definition = self._item_definitions[item_id]
+            lines.append(
+                f"usable_item:{item_id}:{definition.get('name', item_id)}:stock={items.get(item_id, 0)}:"
+                f"effect={definition.get('effect_type')}:{definition.get('effect_value')}"
+            )
         return lines
 
     def _quest_lines(self) -> list[str]:

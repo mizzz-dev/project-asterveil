@@ -34,6 +34,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(app.last_event_id, "event.system.new_game_intro")
             self.assertIn("flag.game.new_game_started", app.quest_session.world_flags)
             self.assertEqual(app.inventory_state["gold"], 0)
+            self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 3)
 
     def test_continue_loads_saved_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -78,6 +79,8 @@ class PlayableSliceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             app = self._build_app(tmp_dir)
             app.new_game()
+            app.party_members[0].current_hp = 50
+            app.use_item("item.consumable.mini_potion", "char.main.rion")
             app.perform_action("talk_npc")
             app.perform_action("save")
 
@@ -89,6 +92,49 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertTrue(any("last_event_id:event.ch01.port_request" in line for line in status_logs))
             self.assertEqual(resumed.quest_state().status, QuestStatus.READY_TO_COMPLETE)
             self.assertTrue(any(line.startswith("gold:") for line in inventory_logs))
+            self.assertEqual(resumed.party_members[0].current_hp, 90)
+            self.assertEqual(resumed.inventory_state["items"]["item.consumable.mini_potion"], 2)
+
+    def test_use_item_updates_hp_sp_and_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.party_members[0].current_hp = 60
+            app.party_members[0].current_sp = 30
+
+            hp_logs = app.use_item("item.consumable.mini_potion", "char.main.rion")
+            sp_logs = app.use_item("item.consumable.focus_drop", "char.main.rion")
+
+            self.assertIn("item_used:item.consumable.mini_potion:target=char.main.rion", hp_logs)
+            self.assertIn("item_used:item.consumable.focus_drop:target=char.main.rion", sp_logs)
+            self.assertEqual(app.party_members[0].current_hp, 100)
+            self.assertEqual(app.party_members[0].current_sp, 55)
+            self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 2)
+            self.assertEqual(app.inventory_state["items"]["item.consumable.focus_drop"], 1)
+
+    def test_use_item_failure_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+
+            no_stock = app.use_item("item.consumable.unknown", "char.main.rion")
+            self.assertEqual(no_stock, ["item_use_failed:no_stock:item.consumable.unknown"])
+
+            invalid_target = app.use_item("item.consumable.mini_potion", "char.main.unknown")
+            self.assertEqual(invalid_target, ["item_use_failed:invalid_target:char.main.unknown"])
+
+            app.inventory_state["items"]["item.consumable.focus_drop"] = 0
+            out_of_stock = app.use_item("item.consumable.focus_drop", "char.main.rion")
+            self.assertEqual(out_of_stock, ["item_use_failed:no_stock:item.consumable.focus_drop"])
+
+    def test_status_and_usable_item_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            logs = app.perform_action("status")
+            usable = app.perform_action("use_item")
+            self.assertTrue(any(line.startswith("member:char.main.rion") for line in logs))
+            self.assertTrue(any(line.startswith("usable_item:item.consumable.mini_potion") for line in usable))
 
     def test_continue_detects_missing_or_broken_save(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
