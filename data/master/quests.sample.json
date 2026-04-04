@@ -1,13 +1,23 @@
 [
   {
     "id": "quest.ch01.missing_port_record",
+    "title": "港湾記録の欠片",
+    "description": "港の長老から依頼を受け、港を荒らす亡霊を討伐する。",
     "quest_type": "main",
     "chapter": 1,
     "prerequisites": [],
     "objectives": [
-      { "type": "talk", "target_id": "npc.port.elder", "count": 1 },
-      { "type": "battle_win", "target_id": "enemy.ch01.port_wraith", "count": 1 }
+      {
+        "id": "obj.ch01.port_wraith_kill",
+        "type": "kill_enemy",
+        "target_enemy_id": "enemy.ch01.port_wraith",
+        "required_count": 1
+      }
     ],
-    "rewards": { "exp": 120, "gold": 80, "item_ids": ["item.material.memory_shard"] }
+    "reward": {
+      "exp": 120,
+      "gold": 80,
+      "completion_flag": "flag.ch01.port_record_restored"
+    }
   }
 ]

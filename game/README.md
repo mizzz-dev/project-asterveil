@@ -16,3 +16,15 @@
 - `game/battle/cli/`: 開発者確認用ランナー
 
 詳細は `docs/BATTLE_VERTICAL_SLICE.md` を参照。
+
+
+## quest/
+
+会話イベント + クエスト最小進行実装。
+
+- `game/quest/domain/`: クエスト状態機械、イベント/戦闘結果契約
+- `game/quest/application/`: イベント進行オーケストレーション
+- `game/quest/infrastructure/`: クエスト/イベントマスターデータ読込
+- `game/quest/cli/`: Vertical Slice確認ランナー
+
+詳細は `docs/QUEST_VERTICAL_SLICE.md` を参照。

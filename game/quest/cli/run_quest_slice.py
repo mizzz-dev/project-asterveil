@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from game.battle.application.session import BattleSession
+from game.battle.domain.entities import Team
+from game.battle.infrastructure.master_data_repository import MasterDataRepository
+from game.quest.application.session import QuestSliceSession
+from game.quest.domain.entities import BattleResult
+from game.quest.domain.services import QuestProgressService
+from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
+
+
+ENCOUNTER_TO_ENEMY_ID = {
+    "encounter.ch01.port_wraith": "enemy.ch01.port_wraith",
+}
+
+
+def build_battle_executor(root: Path):
+    battle_repo = MasterDataRepository(root)
+    skills = battle_repo.load_skills()
+    player = battle_repo.load_character("char.main.rion")
+
+    def execute(encounter_id: str) -> BattleResult:
+        if encounter_id not in ENCOUNTER_TO_ENEMY_ID:
+            raise ValueError(f"Unknown encounter_id: {encounter_id}")
+
+        enemy_id = ENCOUNTER_TO_ENEMY_ID[encounter_id]
+        enemy = battle_repo.load_enemy(enemy_id)
+        session = BattleSession.from_definitions([player], [enemy], skills)
+        session.bind_unit_skills({player.id: player.skill_ids, enemy.id: enemy.skill_ids})
+
+        winner = session.run_until_finished()
+        player_won = winner == Team.PLAYER
+        defeated = (enemy_id,) if player_won else tuple()
+        return BattleResult(encounter_id=encounter_id, player_won=player_won, defeated_enemy_ids=defeated)
+
+    return execute
+
+
+def run_quest_vertical_slice() -> int:
+    master_root = Path("data/master")
+    quest_repo = QuestMasterDataRepository(master_root)
+
+    quest_defs = quest_repo.load_quests()
+    event_defs = quest_repo.load_events()
+
+    session = QuestSliceSession(
+        quest_service=QuestProgressService(quest_defs),
+        events=event_defs,
+        battle_executor=build_battle_executor(master_root),
+    )
+
+    print("[Event] 導入イベント")
+    for log in session.play_event("event.ch01.port_request"):
+        print(f"- {log}")
+
+    quest_state = session.quest_states["quest.ch01.missing_port_record"]
+    if quest_state.status.value == "ready_to_complete":
+        print("[Event] 報告イベント")
+        for log in session.play_event("event.ch01.port_report"):
+            print(f"- {log}")
+
+    print("[Summary]")
+    for quest_id, state in session.quest_states.items():
+        print(f"- {quest_id}: status={state.status.value}, progress={state.objective_progress}")
+    print(f"- world_flags={sorted(session.world_flags)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_quest_vertical_slice())
