@@ -1,0 +1,18 @@
+[
+  {
+    "npc_id": "npc.astel.elder",
+    "npc_name": "港長オルド",
+    "location_id": "location.town.astel",
+    "fallback_lines": [
+      "今日は潮の流れが落ち着いているな。"
+    ]
+  },
+  {
+    "npc_id": "npc.astel.guard",
+    "npc_name": "見張り兵ミナ",
+    "location_id": "location.town.astel",
+    "fallback_lines": [
+      "港の見回りは任せて。"
+    ]
+  }
+]

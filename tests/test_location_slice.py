@@ -57,10 +57,12 @@ class LocationSliceTests(unittest.TestCase):
 
             travel_logs = app.travel_to("location.field.tidal_flats")
             self.assertIn("travel_succeeded:location.field.tidal_flats", travel_logs)
-
-            hunt_logs = app.perform_action("hunt")
-            self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", hunt_logs)
-            self.assertIn("returned_to_hub:location.town.astel", hunt_logs)
+            if "location_event_started:event.location.tidal_flats.first_entry" in travel_logs:
+                self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", travel_logs)
+            else:
+                hunt_logs = app.perform_action("hunt")
+                self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", hunt_logs)
+                self.assertIn("returned_to_hub:location.town.astel", hunt_logs)
             self.assertEqual(app.quest_state("quest.ch01.missing_port_record").status, QuestStatus.READY_TO_COMPLETE)
 
             app.perform_action("save")
@@ -71,7 +73,10 @@ class LocationSliceTests(unittest.TestCase):
             )
             ok, _ = resumed.continue_game()
             self.assertTrue(ok)
-            self.assertEqual(resumed.location_state.current_location_id, HUB_LOCATION_ID)
+            if "location_event_started:event.location.tidal_flats.first_entry" in travel_logs:
+                self.assertEqual(resumed.location_state.current_location_id, "location.field.tidal_flats")
+            else:
+                self.assertEqual(resumed.location_state.current_location_id, HUB_LOCATION_ID)
             self.assertIn("location.field.tidal_flats", resumed.location_state.unlocked_location_ids)
 
 

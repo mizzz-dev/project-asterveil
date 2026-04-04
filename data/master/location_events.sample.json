@@ -1,0 +1,32 @@
+[
+  {
+    "event_id": "event.location.tidal_flats.first_entry",
+    "trigger_type": "on_enter_location",
+    "location_id": "location.field.tidal_flats",
+    "priority": 100,
+    "repeatable": false,
+    "condition": {
+      "required_quest_status": {
+        "quest.ch01.missing_port_record": "in_progress"
+      },
+      "excluded_flags": ["flag.ch01.tidal_flats_intro_seen"]
+    },
+    "dialogue_lines": [
+      "干潟に濃い霧が立ち込め、亡霊が姿を現した。"
+    ],
+    "actions": [
+      {
+        "action_type": "start_battle",
+        "params": {
+          "encounter_id": "encounter.ch01.port_wraith"
+        }
+      },
+      {
+        "action_type": "set_flag",
+        "params": {
+          "flag_id": "flag.ch01.tidal_flats_intro_seen"
+        }
+      }
+    ]
+  }
+]
