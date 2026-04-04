@@ -33,7 +33,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(len(app.party_members), 1)
             self.assertEqual(app.last_event_id, "event.system.new_game_intro")
             self.assertIn("flag.game.new_game_started", app.quest_session.world_flags)
-            self.assertEqual(app.inventory_state["gold"], 0)
+            self.assertEqual(app.inventory_state["gold"], 300)
             self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 3)
 
     def test_continue_loads_saved_data(self) -> None:
@@ -135,6 +135,55 @@ class PlayableSliceTests(unittest.TestCase):
             usable = app.perform_action("use_item")
             self.assertTrue(any(line.startswith("member:char.main.rion") for line in logs))
             self.assertTrue(any(line.startswith("usable_item:item.consumable.mini_potion") for line in usable))
+
+    def test_shop_purchase_updates_inventory_and_gold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+
+            catalog = app.perform_action("shop")
+            self.assertTrue(any(line.startswith("shop:shop.astel.general_store") for line in catalog))
+            self.assertTrue(any(line.startswith("shop_item:item.consumable.mini_potion") for line in catalog))
+
+            result = app.buy_item("item.consumable.mini_potion")
+            self.assertEqual(
+                result,
+                ["purchase_succeeded:shop.astel.general_store:item.consumable.mini_potion:qty=1:spent=50:gold=250"],
+            )
+            self.assertEqual(app.inventory_state["gold"], 250)
+            self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 4)
+
+    def test_shop_purchase_failure_and_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["gold"] = 10
+
+            fail_gold = app.buy_item("item.consumable.mini_potion")
+            self.assertEqual(
+                fail_gold,
+                ["purchase_failed:insufficient_gold:required=50:owned=10"],
+            )
+            fail_item = app.buy_item("item.consumable.unknown")
+            self.assertEqual(
+                fail_item,
+                ["purchase_failed:item_not_sold:shop.astel.general_store:item.consumable.unknown"],
+            )
+            fail_shop = app.buy_item("item.consumable.mini_potion", shop_id="shop.unknown")
+            self.assertEqual(fail_shop, ["purchase_failed:shop_not_found:shop.unknown"])
+
+            app.inventory_state["gold"] = 100
+            app.buy_item("item.consumable.focus_drop")
+            app.perform_action("save")
+
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            self.assertEqual(resumed.inventory_state["gold"], 55)
+            self.assertEqual(resumed.inventory_state["items"]["item.consumable.focus_drop"], 3)
+
+            resumed.party_members[0].current_sp = 40
+            use_logs = resumed.use_item("item.consumable.focus_drop", "char.main.rion")
+            self.assertEqual(use_logs, ["item_used:item.consumable.focus_drop:target=char.main.rion"])
 
     def test_continue_detects_missing_or_broken_save(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
