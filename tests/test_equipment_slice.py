@@ -16,6 +16,13 @@ class EquipmentSliceTests(unittest.TestCase):
         self.assertEqual(definitions["equip.weapon.bronze_blade"].slot_type, "weapon")
         self.assertEqual(definitions["equip.armor.leather_jacket"].stat_modifiers["def"], 3)
 
+    def test_load_inn_definitions(self) -> None:
+        repo = AppMasterDataRepository(Path("data/master"))
+        inns = repo.load_inns()
+        self.assertIn("inn.astel.seaside_inn", inns)
+        self.assertEqual(inns["inn.astel.seaside_inn"].stay_price, 120)
+        self.assertTrue(inns["inn.astel.seaside_inn"].revive_knocked_out_members)
+
     def test_resolve_final_stats_weapon_and_armor(self) -> None:
         repo = AppMasterDataRepository(Path("data/master"))
         service = EquipmentService(repo.load_equipment())

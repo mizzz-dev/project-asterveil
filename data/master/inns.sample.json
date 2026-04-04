@@ -1,0 +1,10 @@
+[
+  {
+    "inn_id": "inn.astel.seaside_inn",
+    "name": "潮風亭",
+    "stay_price": 120,
+    "description": "港町アステルの冒険者向け宿屋。旅の疲れを癒やせる。",
+    "revive_knocked_out_members": true,
+    "location_id": "location.astel.port_town"
+  }
+]

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from game.app.application.equipment_service import EquipmentDefinition
+from game.app.application.inn_service import InnDefinition
 from game.app.application.reward_services import BattleReward, RewardBundle, RewardItem
 
 
@@ -70,6 +71,26 @@ class AppMasterDataRepository:
                 ),
             )
         return rewards
+
+    def load_inns(self) -> dict[str, InnDefinition]:
+        raw = json.loads((self._root / "inns.sample.json").read_text(encoding="utf-8"))
+        inns: dict[str, InnDefinition] = {}
+        for entry in raw:
+            inn_id = str(entry.get("inn_id") or "")
+            if not inn_id:
+                raise ValueError("inns.sample.json missing field=inn_id")
+            stay_price = int(entry.get("stay_price", 0))
+            if stay_price < 0:
+                raise ValueError(f"inns.sample.json stay_price must be >= 0 inn_id={inn_id}")
+            inns[inn_id] = InnDefinition(
+                inn_id=inn_id,
+                name=str(entry.get("name") or inn_id),
+                stay_price=stay_price,
+                description=str(entry.get("description", "")),
+                revive_knocked_out_members=bool(entry.get("revive_knocked_out_members", True)),
+                location_id=str(entry.get("location_id", "")),
+            )
+        return inns
 
     def _validate_reward_item(self, item: dict, valid_item_ids: set[str], source: str) -> RewardItem:
         for field in ["item_id", "amount"]:
