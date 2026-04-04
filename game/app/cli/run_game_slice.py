@@ -43,6 +43,26 @@ def _run_use_item_flow(app: PlayableSliceApplication) -> list[str]:
     return app.use_item(selected_item_id, selected_target)
 
 
+def _run_shop_flow(app: PlayableSliceApplication) -> list[str]:
+    catalog = app.shop_catalog_lines()
+    for line in catalog:
+        print(f"- {line}")
+    if any(line.startswith("shop_failed:") for line in catalog):
+        return []
+
+    purchase_choices = [("cancel", "購入しない")]
+    for line in catalog:
+        if not line.startswith("shop_item:"):
+            continue
+        _, item_id, item_name, price_part, _ = line.split(":", 4)
+        purchase_choices.append((item_id, f"{item_name} ({item_id}) {price_part}"))
+
+    selected_item = _choose(purchase_choices)
+    if selected_item == "cancel":
+        return ["shop_purchase_cancelled"]
+    return app.buy_item(selected_item)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -74,6 +94,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
             selected = _choose(actions)
             if selected == "use_item":
                 logs = _run_use_item_flow(app)
+            elif selected == "shop":
+                logs = _run_shop_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:

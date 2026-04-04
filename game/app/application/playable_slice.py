@@ -16,12 +16,15 @@ from game.quest.infrastructure.master_data_repository import QuestMasterDataRepo
 from game.save.application.session import SaveSliceApplicationService
 from game.save.domain.entities import PartyMemberState
 from game.save.infrastructure.repository import JsonFileSaveRepository
+from game.shop.domain.services import ShopService
+from game.shop.infrastructure.master_data_repository import ShopMasterDataRepository
 
 
 QUEST_ID = "quest.ch01.missing_port_record"
 REQUEST_EVENT_ID = "event.ch01.port_request"
 REPORT_EVENT_ID = "event.ch01.port_report"
 ENCOUNTER_ID = "encounter.ch01.port_wraith"
+BASE_SHOP_ID = "shop.astel.general_store"
 
 
 @dataclass
@@ -43,8 +46,11 @@ class PlayableSliceApplication:
         self._save_service = SaveSliceApplicationService()
         self._reward_service = RewardApplicationService()
         self._item_use_service = ItemUseService()
+        self._shop_repo = ShopMasterDataRepository(master_root)
         self._battle_executor = battle_executor or build_battle_executor(master_root)
         self._item_definitions = self._app_master_repo.load_items()
+        self._shops = self._shop_repo.load_shops()
+        self._shop_service = ShopService(self._shops, self._item_definitions)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
 
         self.quest_session: QuestSliceSession | None = None
@@ -56,7 +62,7 @@ class PlayableSliceApplication:
         self.quest_session = self._build_session()
         self.party_members = self._build_initial_party()
         self.inventory_state = {
-            "gold": 0,
+            "gold": 300,
             "items": {
                 "item.consumable.mini_potion": 3,
                 "item.consumable.focus_drop": 2,
@@ -95,6 +101,7 @@ class PlayableSliceApplication:
             ActionItem("status", "ステータス確認"),
             ActionItem("inventory", "所持品確認"),
             ActionItem("use_item", "アイテムを使う"),
+            ActionItem("shop", "ショップに行く"),
         ]
         quest_state = self.quest_session.quest_states.get(QUEST_ID)
 
@@ -127,6 +134,8 @@ class PlayableSliceApplication:
             return self._inventory_lines()
         if action_key == "use_item":
             return self._usable_item_lines()
+        if action_key == "shop":
+            return self.shop_catalog_lines()
         if action_key == "talk_npc":
             self.last_event_id = REQUEST_EVENT_ID
             logs = self.quest_session.play_event(REQUEST_EVENT_ID)
@@ -190,6 +199,28 @@ class PlayableSliceApplication:
             item_definitions=self._item_definitions,
             party_members=self.party_members,
             inventory_state=self.inventory_state,
+        )
+        return [result.message]
+
+    def shop_catalog_lines(self, shop_id: str = BASE_SHOP_ID) -> list[str]:
+        ok, message, shop = self._shop_service.list_entries(shop_id)
+        if not ok or shop is None:
+            return [f"shop_failed:{message}"]
+
+        lines = [f"shop:{shop.shop_id}:{shop.name}", f"gold:{self.inventory_state.get('gold', 0)}"]
+        for entry in shop.entries:
+            item_name = self._item_definitions.get(entry.item_id, {}).get("name", entry.item_id)
+            lines.append(
+                f"shop_item:{entry.item_id}:{item_name}:price={entry.price}:stock_type={entry.stock_type}"
+            )
+        return lines
+
+    def buy_item(self, item_id: str, quantity: int = 1, shop_id: str = BASE_SHOP_ID) -> list[str]:
+        result = self._shop_service.purchase(
+            inventory_state=self.inventory_state,
+            shop_id=shop_id,
+            item_id=item_id,
+            quantity=quantity,
         )
         return [result.message]
 
