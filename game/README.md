@@ -40,3 +40,13 @@ Vertical Slice向けの最小セーブ/ロード実装。
 - `game/save/cli/`: セーブ→ロード→進行継続の確認ランナー
 
 詳細は `docs/SAVE_VERTICAL_SLICE.md` を参照。
+
+
+## app/
+
+Vertical Slice 統合ランナー実装。
+
+- `game/app/application/`: タイトル導線・ハブメニュー・Battle/Quest/Save連携のオーケストレーション
+- `game/app/cli/`: 最小プレイアブル体験を確認する CLI エントリーポイント
+
+実行例: `python -m game.app.cli.run_game_slice`
