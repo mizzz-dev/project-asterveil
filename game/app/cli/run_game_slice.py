@@ -99,6 +99,29 @@ def _run_equipment_flow(app: PlayableSliceApplication) -> list[str]:
     return app.equip_item(selected_member, slot_type, selected_equipment)
 
 
+def _run_quest_board_flow(app: PlayableSliceApplication) -> list[str]:
+    lines = app.quest_board_lines()
+    for line in lines:
+        print(f"- {line}")
+
+    acceptables: list[tuple[str, str]] = [("cancel", "受注しない")]
+    for line in lines:
+        if not line.startswith("quest_board_entry:"):
+            continue
+        _, quest_id, title, status_part, can_accept_part, _ = line.split(":", 5)
+        if can_accept_part != "can_accept=True":
+            continue
+        acceptables.append((quest_id, f"{title} ({quest_id}) {status_part}"))
+
+    if len(acceptables) == 1:
+        return ["quest_board:no_accept_available"]
+
+    selected_quest_id = _choose(acceptables)
+    if selected_quest_id == "cancel":
+        return ["quest_accept_cancelled"]
+    return app.accept_quest(selected_quest_id)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -136,6 +159,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_shop_flow(app)
             elif selected == "inn":
                 logs = _run_inn_flow(app)
+            elif selected == "quest_board":
+                logs = _run_quest_board_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:

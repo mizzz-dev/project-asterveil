@@ -1,11 +1,18 @@
 [
   {
+    "quest_id": "quest.ch01.missing_port_record",
     "id": "quest.ch01.missing_port_record",
     "title": "港湾記録の欠片",
     "description": "港の長老から依頼を受け、港を荒らす亡霊を討伐する。",
-    "quest_type": "main",
-    "chapter": 1,
-    "prerequisites": [],
+    "category": "main",
+    "repeatable": false,
+    "reporting_npc_id": "npc.ch01.elder_toma",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [],
+      "min_level": 1
+    },
+    "encounter_id": "encounter.ch01.port_wraith",
     "objectives": [
       {
         "id": "obj.ch01.port_wraith_kill",
@@ -24,6 +31,64 @@
         }
       ],
       "completion_flag": "flag.ch01.port_record_restored"
+    }
+  },
+  {
+    "quest_id": "quest.ch01.harbor_cleanup",
+    "id": "quest.ch01.harbor_cleanup",
+    "title": "港路の安全確保",
+    "description": "港湾記録の件が片付いた後、残党亡霊をもう1体討伐する。",
+    "category": "sub",
+    "repeatable": false,
+    "reporting_npc_id": "npc.ch01.harbor_guard",
+    "availability": {
+      "required_quest_ids": ["quest.ch01.missing_port_record"],
+      "required_flags": [],
+      "min_level": 1
+    },
+    "encounter_id": "encounter.ch01.port_wraith",
+    "objectives": [
+      {
+        "id": "obj.ch01.cleanup_kill",
+        "type": "kill_enemy",
+        "target_enemy_id": "enemy.ch01.port_wraith",
+        "required_count": 1
+      }
+    ],
+    "reward": {
+      "exp": 90,
+      "gold": 60,
+      "items": [],
+      "completion_flag": "flag.ch01.harbor_secured"
+    }
+  },
+  {
+    "quest_id": "quest.ch01.rookie_level_trial",
+    "id": "quest.ch01.rookie_level_trial",
+    "title": "新人試験：幽霊相手の実地訓練",
+    "description": "港での実戦訓練。レベル8以上の冒険者のみ受注できる。",
+    "category": "training",
+    "repeatable": false,
+    "reporting_npc_id": "npc.ch01.guild_clerk",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": ["flag.game.new_game_started"],
+      "min_level": 8
+    },
+    "encounter_id": "encounter.ch01.port_wraith",
+    "objectives": [
+      {
+        "id": "obj.ch01.training_kill",
+        "type": "kill_enemy",
+        "target_enemy_id": "enemy.ch01.port_wraith",
+        "required_count": 1
+      }
+    ],
+    "reward": {
+      "exp": 70,
+      "gold": 30,
+      "items": [],
+      "completion_flag": "flag.ch01.training_cleared"
     }
   }
 ]

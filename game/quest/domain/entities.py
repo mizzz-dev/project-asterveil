@@ -11,6 +11,14 @@ class QuestStatus(str, Enum):
     COMPLETED = "completed"
 
 
+class QuestBoardStatus(str, Enum):
+    LOCKED = "locked"
+    AVAILABLE = "available"
+    IN_PROGRESS = "in_progress"
+    READY_TO_COMPLETE = "ready_to_complete"
+    COMPLETED = "completed"
+
+
 @dataclass(frozen=True)
 class ObjectiveDefinition:
     id: str
@@ -28,12 +36,24 @@ class QuestReward:
 
 
 @dataclass(frozen=True)
+class QuestAvailability:
+    required_quest_ids: tuple[str, ...] = tuple()
+    required_flags: tuple[str, ...] = tuple()
+    min_level: int | None = None
+
+
+@dataclass(frozen=True)
 class QuestDefinition:
     id: str
     title: str
     description: str
     objectives: tuple[ObjectiveDefinition, ...]
     reward: QuestReward
+    availability: QuestAvailability = QuestAvailability()
+    reporting_npc_id: str = "npc.quest.board"
+    category: str | None = None
+    repeatable: bool = False
+    encounter_id: str | None = None
 
 
 @dataclass

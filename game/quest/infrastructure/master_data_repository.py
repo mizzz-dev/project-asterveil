@@ -7,6 +7,7 @@ from game.quest.domain.entities import (
     EventDefinition,
     EventStep,
     EventStepAction,
+    QuestAvailability,
     ObjectiveDefinition,
     QuestDefinition,
     QuestReward,
@@ -22,6 +23,7 @@ class QuestMasterDataRepository:
         definitions: dict[str, QuestDefinition] = {}
         for quest in raw:
             self._validate_quest(quest)
+            quest_id = quest.get("quest_id", quest["id"])
             objectives = tuple(
                 ObjectiveDefinition(
                     id=objective["id"],
@@ -32,8 +34,9 @@ class QuestMasterDataRepository:
                 for objective in quest["objectives"]
             )
             reward_block = quest["reward"]
-            definitions[quest["id"]] = QuestDefinition(
-                id=quest["id"],
+            availability_raw = quest.get("availability", {})
+            definitions[quest_id] = QuestDefinition(
+                id=quest_id,
                 title=quest["title"],
                 description=quest["description"],
                 objectives=objectives,
@@ -46,6 +49,19 @@ class QuestMasterDataRepository:
                     ),
                     completion_flag=reward_block.get("completion_flag"),
                 ),
+                availability=QuestAvailability(
+                    required_quest_ids=tuple(str(qid) for qid in availability_raw.get("required_quest_ids", [])),
+                    required_flags=tuple(str(flag_id) for flag_id in availability_raw.get("required_flags", [])),
+                    min_level=(
+                        int(availability_raw["min_level"])
+                        if availability_raw.get("min_level") is not None
+                        else None
+                    ),
+                ),
+                reporting_npc_id=str(quest.get("reporting_npc_id", "npc.quest.board")),
+                category=quest.get("category"),
+                repeatable=bool(quest.get("repeatable", False)),
+                encounter_id=quest.get("encounter_id"),
             )
         return definitions
 
@@ -79,7 +95,10 @@ class QuestMasterDataRepository:
         return definitions
 
     def _validate_quest(self, quest: dict) -> None:
-        required = ["id", "title", "description", "objectives", "reward"]
+        if "id" not in quest and "quest_id" not in quest:
+            raise ValueError("quests.sample.json missing field=id/quest_id")
+
+        required = ["title", "description", "objectives", "reward"]
         for field in required:
             if field not in quest:
                 raise ValueError(f"quests.sample.json missing field={field} quest={quest.get('id')}")
