@@ -140,6 +140,24 @@ def _run_travel_flow(app: PlayableSliceApplication) -> list[str]:
     return app.travel_to(selected)
 
 
+def _run_talk_npc_flow(app: PlayableSliceApplication) -> list[str]:
+    npc_lines = app.talk_npc_options_lines()
+    for line in npc_lines:
+        print(f"- {line}")
+    options: list[tuple[str, str]] = [("cancel", "話しかけない")]
+    for line in npc_lines:
+        if not line.startswith("npc:"):
+            continue
+        _, npc_id, npc_name = line.split(":", 2)
+        options.append((npc_id, f"{npc_name} ({npc_id})"))
+    if len(options) == 1:
+        return ["dialogue_unavailable:no_npc"]
+    selected = _choose(options)
+    if selected == "cancel":
+        return ["dialogue_cancelled"]
+    return app.talk_to_npc(selected)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -181,6 +199,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_quest_board_flow(app)
             elif selected == "move":
                 logs = _run_travel_flow(app)
+            elif selected == "talk_npc":
+                logs = _run_talk_npc_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:

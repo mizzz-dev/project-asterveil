@@ -63,6 +63,11 @@
         "location.town.astel",
         "location.field.tidal_flats"
       ]
+    },
+    "event_state": {
+      "completed_location_event_ids": [
+        "event.location.tidal_flats.first_entry"
+      ]
     }
   }
 }

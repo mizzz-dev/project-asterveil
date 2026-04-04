@@ -1,0 +1,75 @@
+[
+  {
+    "entry_id": "dialogue.elder.quest_not_accepted",
+    "npc_id": "npc.astel.elder",
+    "priority": 100,
+    "condition": {
+      "excluded_flags": ["flag.quest.accepted:quest.ch01.missing_port_record"]
+    },
+    "lines": [
+      "掲示板に依頼を出してある。手が空いていたら受けてくれ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder.quest_in_progress",
+    "npc_id": "npc.astel.elder",
+    "priority": 200,
+    "condition": {
+      "required_quest_status": {
+        "quest.ch01.missing_port_record": "in_progress"
+      }
+    },
+    "lines": [
+      "干潟に亡霊が出る。準備を整えて向かうんだ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder.quest_ready",
+    "npc_id": "npc.astel.elder",
+    "priority": 250,
+    "condition": {
+      "required_quest_status": {
+        "quest.ch01.missing_port_record": "ready_to_complete"
+      }
+    },
+    "lines": [
+      "戻ったか。討伐完了なら報告を聞かせてくれ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder_event_after_arrival",
+    "npc_id": "npc.astel.elder",
+    "priority": 300,
+    "condition": {
+      "required_flags": ["flag.ch01.tidal_flats_intro_seen"],
+      "required_quest_status": {
+        "quest.ch01.missing_port_record": "completed"
+      }
+    },
+    "lines": [
+      "干潟の異変を鎮めてくれて助かった。町は落ち着きを取り戻したよ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard_before_intro",
+    "npc_id": "npc.astel.guard",
+    "priority": 100,
+    "condition": {
+      "excluded_flags": ["flag.ch01.tidal_flats_intro_seen"]
+    },
+    "lines": [
+      "干潟の入り口で不穏な気配がするの。気をつけて。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard_after_intro",
+    "npc_id": "npc.astel.guard",
+    "priority": 200,
+    "condition": {
+      "required_flags": ["flag.ch01.tidal_flats_intro_seen"]
+    },
+    "lines": [
+      "あの霧、もう出ていないわ。あなたが片づけたのね。"
+    ]
+  }
+]

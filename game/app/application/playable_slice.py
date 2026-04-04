@@ -8,7 +8,9 @@ from typing import Callable
 from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
 from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
+from game.app.application.dialogue_event_service import DialogueService, LocationEventService
 from game.app.application.reward_services import RewardApplicationService
+from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
@@ -45,6 +47,7 @@ class PlayableSliceApplication:
     ) -> None:
         self._quest_repo = QuestMasterDataRepository(master_root)
         self._app_master_repo = AppMasterDataRepository(master_root)
+        self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._reward_service = RewardApplicationService()
@@ -62,11 +65,14 @@ class PlayableSliceApplication:
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
         self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
         self._travel_service = TravelService(self._location_repo.load_locations(), hub_location_id=HUB_LOCATION_ID)
+        self._dialogue_service = DialogueService(self._dialogue_event_repo.load_npc_dialogues())
+        self._location_event_service = LocationEventService(self._dialogue_event_repo.load_location_events())
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
         self.last_event_id: str | None = None
         self.inventory_state: dict = {}
+        self.completed_location_event_ids: set[str] = set()
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -82,6 +88,7 @@ class PlayableSliceApplication:
         }
         self.quest_session.world_flags.add("flag.game.new_game_started")
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
+        self.completed_location_event_ids = set()
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self.last_event_id = "event.system.new_game_intro"
 
@@ -110,6 +117,8 @@ class PlayableSliceApplication:
             current_location_id=str(location_meta.get("current_location_id", HUB_LOCATION_ID)),
             unlocked_location_ids=set(location_meta.get("unlocked_location_ids", [HUB_LOCATION_ID])),
         )
+        event_meta = save_data.meta.get("event_state", {})
+        self.completed_location_event_ids = set(event_meta.get("completed_location_event_ids", []))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
@@ -129,6 +138,7 @@ class PlayableSliceApplication:
             ActionItem("quest_board", "クエストボードを見る"),
             ActionItem("move", "移動する"),
             ActionItem("current_location", "現在地を確認する"),
+            ActionItem("talk_npc", "NPCと話す"),
         ]
         if self._has_active_quest() and self._location_can_hunt():
             items.append(ActionItem("hunt", "討伐へ進む"))
@@ -159,6 +169,8 @@ class PlayableSliceApplication:
             return self.travel_options_lines()
         if action_key == "current_location":
             return self.current_location_lines()
+        if action_key == "talk_npc":
+            return self.talk_npc_options_lines()
         if action_key == "inventory":
             return self._inventory_lines()
         if action_key == "use_item":
@@ -220,6 +232,7 @@ class PlayableSliceApplication:
 
         state = self.quest_session.quest_states.get(quest_id) or self.quest_session.quest_service.create_initial_state(quest_id)
         self.quest_session.quest_states[quest_id] = self.quest_session.quest_service.accept(state)
+        self.quest_session.world_flags.add(f"flag.quest.accepted:{quest_id}")
         self.last_event_id = f"event.system.quest_accepted:{quest_id}"
         return [f"quest_accepted:{quest_id}"]
 
@@ -264,6 +277,9 @@ class PlayableSliceApplication:
                     "current_location_id": self.location_state.current_location_id,
                     "unlocked_location_ids": sorted(self.location_state.unlocked_location_ids),
                 },
+                "event_state": {
+                    "completed_location_event_ids": sorted(self.completed_location_event_ids),
+                },
             },
         )
         self._save_repo.save(save_data)
@@ -282,7 +298,9 @@ class PlayableSliceApplication:
         if not result.success:
             return [result.message]
         destination = self._travel_service.location(location_id)
-        return [result.message, f"current_location:{location_id}:{destination.name if destination else location_id}"]
+        lines = [result.message, f"current_location:{location_id}:{destination.name if destination else location_id}"]
+        lines.extend(self._run_on_enter_location_events(location_id))
+        return lines
 
     def current_location_lines(self) -> list[str]:
         definition = self._travel_service.location(self.location_state.current_location_id)
@@ -292,6 +310,27 @@ class PlayableSliceApplication:
             f"current_location:{definition.location_id}:{definition.name}:type={definition.location_type}",
             f"location_description:{definition.description}",
         ]
+
+    def talk_npc_options_lines(self) -> list[str]:
+        npcs = self._dialogue_service.list_npcs_by_location(self.location_state.current_location_id)
+        if not npcs:
+            return [f"npc:none:location={self.location_state.current_location_id}"]
+        return [f"npc:{npc.npc_id}:{npc.npc_name}" for npc in npcs]
+
+    def talk_to_npc(self, npc_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        resolved = self._dialogue_service.resolve(
+            npc_id=npc_id,
+            current_location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            quest_states=self.quest_session.quest_states,
+        )
+        if not resolved.success:
+            return list(resolved.lines)
+        lines = [f"dialogue:{resolved.npc_id}:{resolved.npc_name}:entry={resolved.matched_entry_id or 'fallback'}"]
+        lines.extend(f"line:{resolved.npc_id}:{line}" for line in resolved.lines)
+        return lines
 
     def use_item(self, item_id: str, target_character_id: str) -> list[str]:
         result = self._item_use_service.use_item(
@@ -484,6 +523,62 @@ class PlayableSliceApplication:
         if current_location.can_return_to_hub:
             self.location_state.current_location_id = HUB_LOCATION_ID
             logs.append(f"returned_to_hub:{HUB_LOCATION_ID}")
+        return logs
+
+    def _run_on_enter_location_events(self, location_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        events = self._location_event_service.resolve_on_enter(
+            location_id=location_id,
+            world_flags=self.quest_session.world_flags,
+            quest_states=self.quest_session.quest_states,
+            completed_event_ids=self.completed_location_event_ids,
+        )
+        lines: list[str] = []
+        for event in events:
+            lines.append(f"location_event_started:{event.event_id}")
+            lines.extend(f"line:narration:{line}" for line in event.dialogue_lines)
+            for action in event.actions:
+                lines.extend(self._run_location_event_action(action.action_type, action.params))
+            if not event.repeatable:
+                self.completed_location_event_ids.add(event.event_id)
+            self.last_event_id = event.event_id
+            lines.append(f"location_event_completed:{event.event_id}")
+        return lines
+
+    def _run_location_event_action(self, action_type: str, params: dict[str, str]) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        if action_type == "set_flag":
+            flag_id = params["flag_id"]
+            self.quest_session.world_flags.add(flag_id)
+            unlocked = self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
+            logs = [f"flag_set:{flag_id}"]
+            logs.extend(f"location_unlocked:{location_id}" for location_id in unlocked)
+            return logs
+        if action_type == "accept_quest":
+            return self.accept_quest(params["quest_id"])
+        if action_type == "start_battle":
+            return self._run_event_battle(params["encounter_id"])
+        return [f"location_event_action_skipped:unsupported:{action_type}"]
+
+    def _run_event_battle(self, encounter_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        try:
+            battle_result = self._battle_executor(encounter_id, self.party_members)
+        except TypeError:
+            battle_result = self._battle_executor(encounter_id)
+        logs = [f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
+        if battle_result.player_won:
+            battle_reward = self._battle_rewards.get(encounter_id)
+            if battle_reward is not None:
+                logs.extend(self._reward_service.apply(battle_reward.rewards_on_win, self.party_members, self.inventory_state))
+        for state in self.quest_session.quest_states.values():
+            before = state.status
+            self.quest_session.quest_service.apply_battle_result(state, battle_result)
+            if before != state.status:
+                logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
         return logs
 
     def _build_session(self) -> QuestSliceSession:
