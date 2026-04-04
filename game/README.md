@@ -28,3 +28,15 @@
 - `game/quest/cli/`: Vertical Slice確認ランナー
 
 詳細は `docs/QUEST_VERTICAL_SLICE.md` を参照。
+
+
+## save/
+
+Vertical Slice向けの最小セーブ/ロード実装。
+
+- `game/save/domain/`: セーブ契約モデルと整合チェック
+- `game/save/application/`: Quest Sessionとの相互変換
+- `game/save/infrastructure/`: JSONファイル保存 / インメモリ保存
+- `game/save/cli/`: セーブ→ロード→進行継続の確認ランナー
+
+詳細は `docs/SAVE_VERTICAL_SLICE.md` を参照。
