@@ -1,11 +1,81 @@
 [
   {
-    "id": "event.ch01.port_intro",
+    "id": "event.ch01.port_request",
+    "title": "港の討伐依頼",
     "scene_id": "scene.ch01.port_ruins",
-    "lines": [
-      { "speaker": "char.main.rion", "text_key": "evt.ch01.port_intro.001", "emotion": "shock" }
-    ],
-    "triggers": ["quest.ch01.missing_port_record:accepted"],
-    "next_event_ids": ["event.ch01.first_battle"]
+    "steps": [
+      {
+        "id": "step_001",
+        "speaker": "npc.port.elder",
+        "line": "旅人よ、港を荒らす亡霊を討ってくれ。"
+      },
+      {
+        "id": "step_002",
+        "action": {
+          "type": "accept_quest",
+          "params": {
+            "quest_id": "quest.ch01.missing_port_record"
+          }
+        }
+      },
+      {
+        "id": "step_003",
+        "speaker": "char.main.rion",
+        "line": "了解だ。すぐに向かう。"
+      },
+      {
+        "id": "step_004",
+        "action": {
+          "type": "start_battle",
+          "params": {
+            "encounter_id": "encounter.ch01.port_wraith"
+          }
+        }
+      },
+      {
+        "id": "step_005",
+        "action": {
+          "type": "set_flag",
+          "params": {
+            "flag_id": "flag.ch01.port_wraith_battle_seen"
+          }
+        }
+      },
+      {
+        "id": "step_006",
+        "action": {
+          "type": "end_event",
+          "params": {}
+        }
+      }
+    ]
+  },
+  {
+    "id": "event.ch01.port_report",
+    "title": "港の報告",
+    "scene_id": "scene.ch01.port_ruins",
+    "steps": [
+      {
+        "id": "step_001",
+        "speaker": "npc.port.elder",
+        "line": "亡霊を祓ってくれたか。礼を受け取ってくれ。"
+      },
+      {
+        "id": "step_002",
+        "action": {
+          "type": "complete_quest",
+          "params": {
+            "quest_id": "quest.ch01.missing_port_record"
+          }
+        }
+      },
+      {
+        "id": "step_003",
+        "action": {
+          "type": "end_event",
+          "params": {}
+        }
+      }
+    ]
   }
 ]
