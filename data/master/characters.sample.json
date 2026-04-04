@@ -1,0 +1,9 @@
+[
+  {
+    "id": "char.main.rion",
+    "role": "striker",
+    "base_stats": { "hp": 120, "atk": 24, "def": 16, "spd": 20 },
+    "growth_curve_id": "growth.standard.hero",
+    "initial_skill_ids": ["skill.striker.flare_slash"]
+  }
+]

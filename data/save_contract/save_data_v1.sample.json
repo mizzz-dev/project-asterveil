@@ -1,0 +1,36 @@
+{
+  "save_version": 1,
+  "player_profile": {
+    "difficulty": "standard",
+    "play_time_sec": 5420,
+    "last_saved_at": "2026-04-04T00:00:00Z"
+  },
+  "party_state": {
+    "members": [
+      {
+        "character_id": "char.main.rion",
+        "level": 8,
+        "equipped": {
+          "weapon": "equip.weapon.bronze_blade"
+        },
+        "unlocked_skill_ids": ["skill.striker.flare_slash"]
+      }
+    ]
+  },
+  "quest_state": {
+    "quest.ch01.missing_port_record": {
+      "status": "in_progress",
+      "objective_progress": [1, 0]
+    }
+  },
+  "world_flags": {
+    "chapter.current": 1,
+    "event.ch01.port_intro": true
+  },
+  "inventory_state": {
+    "gold": 320,
+    "items": {
+      "item.material.memory_shard": 3
+    }
+  }
+}
