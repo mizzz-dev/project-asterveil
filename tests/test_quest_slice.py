@@ -7,7 +7,7 @@ from pathlib import Path
 
 from game.quest.application.session import QuestSliceSession
 from game.quest.domain.entities import BattleResult, QuestStatus
-from game.quest.domain.services import QuestProgressService
+from game.quest.domain.services import QuestBoardService, QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
 
 
@@ -20,6 +20,7 @@ class QuestSliceTests(unittest.TestCase):
     def test_event_data_loading(self) -> None:
         self.assertIn("event.ch01.port_request", self.event_defs)
         self.assertGreaterEqual(len(self.event_defs["event.ch01.port_request"].steps), 3)
+        self.assertGreaterEqual(len(self.quest_defs), 3)
 
     def test_accept_and_complete_flow_with_battle_win(self) -> None:
         def battle_executor(encounter_id: str) -> BattleResult:
@@ -86,6 +87,26 @@ class QuestSliceTests(unittest.TestCase):
             repo = QuestMasterDataRepository(root)
             with self.assertRaises(ValueError):
                 repo.load_quests()
+
+    def test_quest_board_unlock_conditions_and_accept_limit(self) -> None:
+        board = QuestBoardService(self.quest_defs, max_active_quests=1)
+        quest_states = {}
+        world_flags = {"flag.game.new_game_started"}
+
+        entries = {entry.quest_id: entry for entry in board.list_entries(quest_states, world_flags, party_level=1)}
+        self.assertEqual(entries["quest.ch01.missing_port_record"].status.value, "available")
+        self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "locked")
+        self.assertEqual(entries["quest.ch01.rookie_level_trial"].status.value, "locked")
+
+        quest_states["quest.ch01.missing_port_record"] = QuestProgressService(self.quest_defs).accept(
+            QuestProgressService(self.quest_defs).create_initial_state("quest.ch01.missing_port_record")
+        )
+        self.assertFalse(board.can_accept_more(quest_states))
+
+        quest_states["quest.ch01.missing_port_record"].status = QuestStatus.COMPLETED
+        entries = {entry.quest_id: entry for entry in board.list_entries(quest_states, world_flags, party_level=8)}
+        self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "available")
+        self.assertEqual(entries["quest.ch01.rookie_level_trial"].status.value, "available")
 
 
 if __name__ == "__main__":

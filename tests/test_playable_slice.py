@@ -40,7 +40,7 @@ class PlayableSliceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             app = self._build_app(tmp_dir)
             app.new_game()
-            app.perform_action("talk_npc")
+            app.accept_quest("quest.ch01.missing_port_record")
             app.perform_action("save")
 
             resumed = self._build_app(tmp_dir)
@@ -48,14 +48,14 @@ class PlayableSliceTests(unittest.TestCase):
 
             self.assertTrue(ok)
             self.assertIn("ロード", message)
-            self.assertEqual(resumed.quest_state().status, QuestStatus.READY_TO_COMPLETE)
-            self.assertGreater(resumed.inventory_state["gold"], 0)
+            self.assertEqual(resumed.quest_state().status, QuestStatus.IN_PROGRESS)
+            self.assertEqual(resumed.inventory_state["gold"], 300)
 
     def test_transition_from_in_progress_to_reportable_to_completed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             losing_app = self._build_app(tmp_dir, win=False)
             losing_app.new_game()
-            losing_app.perform_action("talk_npc")
+            losing_app.accept_quest("quest.ch01.missing_port_record")
 
             self.assertEqual(losing_app.quest_state().status, QuestStatus.IN_PROGRESS)
             self.assertIn("hunt", {item.key for item in losing_app.available_actions()})
@@ -81,7 +81,7 @@ class PlayableSliceTests(unittest.TestCase):
             app.new_game()
             app.party_members[0].current_hp = 50
             app.use_item("item.consumable.mini_potion", "char.main.rion")
-            app.perform_action("talk_npc")
+            app.accept_quest("quest.ch01.missing_port_record")
             app.perform_action("save")
 
             resumed = self._build_app(tmp_dir)
@@ -89,8 +89,10 @@ class PlayableSliceTests(unittest.TestCase):
             status_logs = resumed.perform_action("status")
             inventory_logs = resumed.perform_action("inventory")
 
-            self.assertTrue(any("last_event_id:event.ch01.port_request" in line for line in status_logs))
-            self.assertEqual(resumed.quest_state().status, QuestStatus.READY_TO_COMPLETE)
+            self.assertTrue(
+                any("last_event_id:event.system.quest_accepted:quest.ch01.missing_port_record" in line for line in status_logs)
+            )
+            self.assertEqual(resumed.quest_state().status, QuestStatus.IN_PROGRESS)
             self.assertTrue(any(line.startswith("gold:") for line in inventory_logs))
             self.assertEqual(resumed.party_members[0].current_hp, 90)
             self.assertEqual(resumed.inventory_state["items"]["item.consumable.mini_potion"], 2)
@@ -271,7 +273,7 @@ class PlayableSliceTests(unittest.TestCase):
                 battle_executor=battle_executor,
             )
             app.new_game()
-            app.perform_action("talk_npc")
+            app.accept_quest("quest.ch01.missing_port_record")
 
             invalid_id = app.equip_item("char.main.rion", "weapon", "equip.weapon.unknown")
             self.assertEqual(invalid_id, ["equip_failed:unknown_equipment:equip.weapon.unknown"])
@@ -300,6 +302,33 @@ class PlayableSliceTests(unittest.TestCase):
             ok, message = app.continue_game()
             self.assertFalse(ok)
             self.assertIn("破損", message)
+
+    def test_quest_board_multi_quest_unlock_and_persistence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            board_lines = app.quest_board_lines()
+            self.assertTrue(any("quest_board_entry:quest.ch01.missing_port_record" in line for line in board_lines))
+            self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=locked" in line for line in board_lines))
+
+            self.assertEqual(app.accept_quest("quest.ch01.missing_port_record"), ["quest_accepted:quest.ch01.missing_port_record"])
+            app.perform_action("hunt")
+            app.perform_action("report")
+
+            board_lines = app.quest_board_lines()
+            self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=available" in line for line in board_lines))
+            self.assertEqual(app.accept_quest("quest.ch01.harbor_cleanup"), ["quest_accepted:quest.ch01.harbor_cleanup"])
+            app.perform_action("save")
+
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            resumed_board = resumed.quest_board_lines()
+            self.assertTrue(
+                any("quest.ch01.missing_port_record" in line and "status=completed" in line for line in resumed_board)
+            )
+            self.assertTrue(
+                any("quest.ch01.harbor_cleanup" in line and "status=in_progress" in line for line in resumed_board)
+            )
 
 
 if __name__ == "__main__":

@@ -29,6 +29,8 @@
 
 詳細は `docs/QUEST_VERTICAL_SLICE.md` を参照。
 
+クエストボード/複数クエストの最小実装は `docs/QUEST_BOARD_VERTICAL_SLICE.md` を参照。
+
 
 ## save/
 

@@ -12,8 +12,8 @@ from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.quest.application.session import QuestSliceSession
 from game.quest.cli.run_quest_slice import build_battle_executor
-from game.quest.domain.entities import BattleResult, QuestState, QuestStatus
-from game.quest.domain.services import QuestProgressService
+from game.quest.domain.entities import BattleResult, QuestBoardStatus, QuestState, QuestStatus
+from game.quest.domain.services import QuestBoardService, QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
 from game.save.application.session import SaveSliceApplicationService
 from game.save.domain.entities import PartyMemberState
@@ -22,10 +22,6 @@ from game.shop.domain.services import ShopService
 from game.shop.infrastructure.master_data_repository import ShopMasterDataRepository
 
 
-QUEST_ID = "quest.ch01.missing_port_record"
-REQUEST_EVENT_ID = "event.ch01.port_request"
-REPORT_EVENT_ID = "event.ch01.port_report"
-ENCOUNTER_ID = "encounter.ch01.port_wraith"
 BASE_SHOP_ID = "shop.astel.general_store"
 BASE_INN_ID = "inn.astel.seaside_inn"
 
@@ -59,6 +55,7 @@ class PlayableSliceApplication:
         self._inns = self._app_master_repo.load_inns()
         self._inn_service = InnService(self._inns, self._equipment_service)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
+        self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
@@ -112,14 +109,11 @@ class PlayableSliceApplication:
             ActionItem("equip", "装備変更"),
             ActionItem("shop", "ショップに行く"),
             ActionItem("inn", "宿屋に泊まる"),
+            ActionItem("quest_board", "クエストボードを見る"),
         ]
-        quest_state = self.quest_session.quest_states.get(QUEST_ID)
-
-        if quest_state is None:
-            items.append(ActionItem("talk_npc", "NPCと話す（受注）"))
-        elif quest_state.status == QuestStatus.IN_PROGRESS:
+        if self._has_active_quest():
             items.append(ActionItem("hunt", "討伐へ進む"))
-        elif quest_state.status == QuestStatus.READY_TO_COMPLETE:
+        if self._has_reportable_quest():
             items.append(ActionItem("report", "報告する"))
 
         items.extend(
@@ -140,6 +134,8 @@ class PlayableSliceApplication:
             return self._status_lines()
         if action_key == "quests":
             return self._quest_lines()
+        if action_key == "quest_board":
+            return self.quest_board_lines()
         if action_key == "inventory":
             return self._inventory_lines()
         if action_key == "use_item":
@@ -150,36 +146,10 @@ class PlayableSliceApplication:
             return self.shop_catalog_lines()
         if action_key == "inn":
             return self.inn_info_lines()
-        if action_key == "talk_npc":
-            self.last_event_id = REQUEST_EVENT_ID
-            logs = self.quest_session.play_event(REQUEST_EVENT_ID)
-            if any(log == f"battle_finished:{ENCOUNTER_ID}:player_won=True" for log in logs):
-                battle_reward = self._battle_rewards.get(ENCOUNTER_ID)
-                if battle_reward is not None:
-                    logs.extend(
-                        self._reward_service.apply(
-                            battle_reward.rewards_on_win,
-                            self.party_members,
-                            self.inventory_state,
-                        )
-                    )
-            return logs
         if action_key == "hunt":
             return self._run_hunt()
         if action_key == "report":
-            self.last_event_id = REPORT_EVENT_ID
-            logs = self.quest_session.play_event(REPORT_EVENT_ID)
-            state = self.quest_session.quest_states.get(QUEST_ID)
-            if state and state.reward_claimed:
-                quest_reward = self.quest_session.quest_service.definitions[QUEST_ID].reward
-                logs.extend(
-                    self._reward_service.apply(
-                        self._reward_service.from_quest_reward(quest_reward),
-                        self.party_members,
-                        self.inventory_state,
-                    )
-                )
-            return logs
+            return self.report_ready_quest()
         if action_key == "save":
             self.save_game()
             return ["save_completed"]
@@ -191,6 +161,67 @@ class PlayableSliceApplication:
             return ["exit_selected"]
 
         raise ValueError(f"不明なアクションです: {action_key}")
+
+    def quest_board_lines(self) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        entries = self._quest_board_service.list_entries(
+            self.quest_session.quest_states,
+            self.quest_session.world_flags,
+            self._party_level(),
+        )
+        lines = [f"quest_board:max_active={self._quest_board_service.max_active_quests}"]
+        for entry in entries:
+            lines.append(
+                f"quest_board_entry:{entry.quest_id}:{entry.title}:status={entry.status.value}:"
+                f"can_accept={entry.can_accept}:progress={entry.objective_progress}"
+            )
+        return lines
+
+    def accept_quest(self, quest_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+
+        status = self._quest_board_service.evaluate_status(
+            quest_id,
+            self.quest_session.quest_states,
+            self.quest_session.world_flags,
+            self._party_level(),
+        )
+        if status == QuestBoardStatus.LOCKED:
+            return [f"quest_accept_failed:locked:{quest_id}"]
+        if status != QuestBoardStatus.AVAILABLE:
+            return [f"quest_accept_failed:status={status.value}:{quest_id}"]
+        if not self._quest_board_service.can_accept_more(self.quest_session.quest_states):
+            return [f"quest_accept_failed:active_limit:{self._quest_board_service.max_active_quests}"]
+
+        state = self.quest_session.quest_states.get(quest_id) or self.quest_session.quest_service.create_initial_state(quest_id)
+        self.quest_session.quest_states[quest_id] = self.quest_session.quest_service.accept(state)
+        self.last_event_id = f"event.system.quest_accepted:{quest_id}"
+        return [f"quest_accepted:{quest_id}"]
+
+    def report_ready_quest(self) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        quest_id = self._ready_to_complete_quest_id()
+        if quest_id is None:
+            return ["report_unavailable:no_ready_quest"]
+        state = self.quest_session.quest_states[quest_id]
+        self.quest_session.quest_service.complete(state)
+        quest_reward = self.quest_session.quest_service.definitions[quest_id].reward
+        logs = [f"quest_completed:{quest_id}"]
+        logs.extend(
+            self._reward_service.apply(
+                self._reward_service.from_quest_reward(quest_reward),
+                self.party_members,
+                self.inventory_state,
+            )
+        )
+        if quest_reward.completion_flag:
+            self.quest_session.world_flags.add(quest_reward.completion_flag)
+            logs.append(f"flag_set:{quest_reward.completion_flag}")
+        self.last_event_id = f"event.system.quest_report:{quest_id}"
+        return logs
 
     def save_game(self) -> None:
         if self.quest_session is None:
@@ -330,12 +361,11 @@ class PlayableSliceApplication:
     def _run_hunt(self) -> list[str]:
         if self.quest_session is None:
             raise ValueError("ゲームが開始されていません。")
-
-        quest_state = self.quest_session.quest_states.get(QUEST_ID)
-        if quest_state is None:
-            return ["hunt_unavailable:quest_not_accepted"]
-        if quest_state.status != QuestStatus.IN_PROGRESS:
-            return [f"hunt_unavailable:status={quest_state.status.value}"]
+        quest_id = self._active_quest_id()
+        if quest_id is None:
+            return ["hunt_unavailable:no_active_quest"]
+        quest_definition = self.quest_session.quest_service.definitions[quest_id]
+        encounter_id = quest_definition.encounter_id or "encounter.ch01.port_wraith"
 
         battle_party = []
         for member in self.party_members:
@@ -359,12 +389,12 @@ class PlayableSliceApplication:
                 )
             )
         try:
-            battle_result = self._battle_executor(ENCOUNTER_ID, battle_party)
+            battle_result = self._battle_executor(encounter_id, battle_party)
         except TypeError:
-            battle_result = self._battle_executor(ENCOUNTER_ID)
-        logs = [f"battle_finished:{ENCOUNTER_ID}:player_won={battle_result.player_won}"]
+            battle_result = self._battle_executor(encounter_id)
+        logs = [f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
         if battle_result.player_won:
-            battle_reward = self._battle_rewards.get(ENCOUNTER_ID)
+            battle_reward = self._battle_rewards.get(encounter_id)
             if battle_reward is not None:
                 logs.extend(
                     self._reward_service.apply(
@@ -379,13 +409,13 @@ class PlayableSliceApplication:
             if before != state.status:
                 logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
 
-        self.last_event_id = "event.system.hunt"
-        self.quest_session.world_flags.add("flag.ch01.port_wraith_battle_seen")
+        self.last_event_id = f"event.system.hunt:{quest_id}"
+        self.quest_session.world_flags.add(f"flag.quest.battle_seen:{quest_id}")
         return logs
 
     def _build_session(self) -> QuestSliceSession:
         return QuestSliceSession(
-            quest_service=QuestProgressService(self._quest_repo.load_quests()),
+            quest_service=QuestProgressService(self._quest_board_service.definitions),
             events=self._quest_repo.load_events(),
             battle_executor=self._battle_executor,
         )
@@ -465,7 +495,34 @@ class PlayableSliceApplication:
             )
         return lines
 
-    def quest_state(self, quest_id: str = QUEST_ID) -> QuestState | None:
+    def _party_level(self) -> int:
+        if not self.party_members:
+            return 1
+        return max(member.level for member in self.party_members)
+
+    def _active_quest_id(self) -> str | None:
+        if self.quest_session is None:
+            return None
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            if state.status == QuestStatus.IN_PROGRESS:
+                return quest_id
+        return None
+
+    def _ready_to_complete_quest_id(self) -> str | None:
+        if self.quest_session is None:
+            return None
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            if state.status == QuestStatus.READY_TO_COMPLETE:
+                return quest_id
+        return None
+
+    def _has_active_quest(self) -> bool:
+        return self._active_quest_id() is not None
+
+    def _has_reportable_quest(self) -> bool:
+        return self._ready_to_complete_quest_id() is not None
+
+    def quest_state(self, quest_id: str = "quest.ch01.missing_port_record") -> QuestState | None:
         if self.quest_session is None:
             return None
         return self.quest_session.quest_states.get(quest_id)
