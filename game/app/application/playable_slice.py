@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from game.app.application.reward_services import RewardApplicationService
+from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.quest.application.session import QuestSliceSession
 from game.quest.cli.run_quest_slice import build_battle_executor
 from game.quest.domain.entities import BattleResult, QuestState, QuestStatus
@@ -35,17 +37,23 @@ class PlayableSliceApplication:
         battle_executor: Callable[[str], BattleResult] | None = None,
     ) -> None:
         self._quest_repo = QuestMasterDataRepository(master_root)
+        self._app_master_repo = AppMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
+        self._reward_service = RewardApplicationService()
         self._battle_executor = battle_executor or build_battle_executor(master_root)
+        self._item_definitions = self._app_master_repo.load_items()
+        self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
         self.last_event_id: str | None = None
+        self.inventory_state: dict = {}
 
     def new_game(self) -> list[str]:
         self.quest_session = self._build_session()
         self.party_members = self._build_initial_party()
+        self.inventory_state = {"gold": 0, "items": {}}
         self.quest_session.world_flags.add("flag.game.new_game_started")
         self.last_event_id = "event.system.new_game_intro"
 
@@ -68,13 +76,14 @@ class PlayableSliceApplication:
         self.quest_session = self._build_session()
         self.last_event_id = self._save_service.restore_quest_session(self.quest_session, save_data)
         self.party_members = save_data.party_members
+        self.inventory_state = save_data.inventory_state or {"gold": 0, "items": {}}
         return True, "セーブデータをロードしました。"
 
     def available_actions(self) -> list[ActionItem]:
         if self.quest_session is None:
             return []
 
-        items = [ActionItem("status", "ステータス確認")]
+        items = [ActionItem("status", "ステータス確認"), ActionItem("inventory", "所持品確認")]
         quest_state = self.quest_session.quest_states.get(QUEST_ID)
 
         if quest_state is None:
@@ -102,14 +111,38 @@ class PlayableSliceApplication:
             return self._status_lines()
         if action_key == "quests":
             return self._quest_lines()
+        if action_key == "inventory":
+            return self._inventory_lines()
         if action_key == "talk_npc":
             self.last_event_id = REQUEST_EVENT_ID
-            return self.quest_session.play_event(REQUEST_EVENT_ID)
+            logs = self.quest_session.play_event(REQUEST_EVENT_ID)
+            if any(log == f"battle_finished:{ENCOUNTER_ID}:player_won=True" for log in logs):
+                battle_reward = self._battle_rewards.get(ENCOUNTER_ID)
+                if battle_reward is not None:
+                    logs.extend(
+                        self._reward_service.apply(
+                            battle_reward.rewards_on_win,
+                            self.party_members,
+                            self.inventory_state,
+                        )
+                    )
+            return logs
         if action_key == "hunt":
             return self._run_hunt()
         if action_key == "report":
             self.last_event_id = REPORT_EVENT_ID
-            return self.quest_session.play_event(REPORT_EVENT_ID)
+            logs = self.quest_session.play_event(REPORT_EVENT_ID)
+            state = self.quest_session.quest_states.get(QUEST_ID)
+            if state and state.reward_claimed:
+                quest_reward = self.quest_session.quest_service.definitions[QUEST_ID].reward
+                logs.extend(
+                    self._reward_service.apply(
+                        self._reward_service.from_quest_reward(quest_reward),
+                        self.party_members,
+                        self.inventory_state,
+                    )
+                )
+            return logs
         if action_key == "save":
             self.save_game()
             return ["save_completed"]
@@ -131,7 +164,7 @@ class PlayableSliceApplication:
             party_members=self.party_members,
             last_event_id=self.last_event_id,
             play_time_sec=0,
-            inventory_state={"gold": 0},
+            inventory_state=self.inventory_state,
             meta={"mode": "playable_vertical_slice"},
         )
         self._save_repo.save(save_data)
@@ -148,6 +181,16 @@ class PlayableSliceApplication:
 
         battle_result = self._battle_executor(ENCOUNTER_ID)
         logs = [f"battle_finished:{ENCOUNTER_ID}:player_won={battle_result.player_won}"]
+        if battle_result.player_won:
+            battle_reward = self._battle_rewards.get(ENCOUNTER_ID)
+            if battle_reward is not None:
+                logs.extend(
+                    self._reward_service.apply(
+                        battle_reward.rewards_on_win,
+                        self.party_members,
+                        self.inventory_state,
+                    )
+                )
         for state in self.quest_session.quest_states.values():
             before = state.status
             self.quest_session.quest_service.apply_battle_result(state, battle_result)
@@ -170,8 +213,15 @@ class PlayableSliceApplication:
             PartyMemberState(
                 character_id="char.main.rion",
                 level=8,
+                current_exp=0,
+                next_level_exp=450,
+                max_hp=120,
                 current_hp=120,
+                max_sp=100,
                 current_sp=100,
+                atk=24,
+                defense=16,
+                spd=18,
                 alive=True,
                 equipped={"weapon": "equip.weapon.bronze_blade"},
                 unlocked_skill_ids=["skill.striker.flare_slash"],
@@ -186,9 +236,27 @@ class PlayableSliceApplication:
             "location:港町アステル",
             f"party_members:{len(self.party_members)}",
             f"last_event_id:{self.last_event_id}",
+            f"gold:{self.inventory_state.get('gold', 0)}",
             f"world_flags:{sorted(self.quest_session.world_flags)}",
         ]
+        for member in self.party_members:
+            lines.append(
+                f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
+                f"hp={member.current_hp}/{member.max_hp}:sp={member.current_sp}/{member.max_sp}:"
+                f"atk={member.atk}:def={member.defense}:spd={member.spd}"
+            )
         lines.extend(self._quest_lines())
+        return lines
+
+    def _inventory_lines(self) -> list[str]:
+        items = self.inventory_state.get("items", {})
+        lines = [f"gold:{self.inventory_state.get('gold', 0)}"]
+        if not items:
+            lines.append("inventory:none")
+            return lines
+        for item_id, amount in sorted(items.items()):
+            item_name = self._item_definitions.get(item_id, {}).get("name", item_id)
+            lines.append(f"item:{item_id}:{item_name}:x{amount}")
         return lines
 
     def _quest_lines(self) -> list[str]:

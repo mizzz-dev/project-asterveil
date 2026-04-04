@@ -1,0 +1,15 @@
+{
+  "battle_rewards": [
+    {
+      "encounter_id": "encounter.ch01.port_wraith",
+      "exp": 130,
+      "gold": 45,
+      "items": [
+        {
+          "item_id": "item.material.memory_shard",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

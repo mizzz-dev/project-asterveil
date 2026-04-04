@@ -33,6 +33,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(len(app.party_members), 1)
             self.assertEqual(app.last_event_id, "event.system.new_game_intro")
             self.assertIn("flag.game.new_game_started", app.quest_session.world_flags)
+            self.assertEqual(app.inventory_state["gold"], 0)
 
     def test_continue_loads_saved_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -47,6 +48,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertIn("ロード", message)
             self.assertEqual(resumed.quest_state().status, QuestStatus.READY_TO_COMPLETE)
+            self.assertGreater(resumed.inventory_state["gold"], 0)
 
     def test_transition_from_in_progress_to_reportable_to_completed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -61,10 +63,13 @@ class PlayableSliceTests(unittest.TestCase):
             winning_app.quest_session = losing_app.quest_session
             winning_app.party_members = losing_app.party_members
             winning_app.last_event_id = losing_app.last_event_id
+            winning_app.inventory_state = losing_app.inventory_state
 
             hunt_logs = winning_app.perform_action("hunt")
             self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", hunt_logs)
             self.assertEqual(winning_app.quest_state().status, QuestStatus.READY_TO_COMPLETE)
+            self.assertTrue(any(log.startswith("exp_applied:") for log in hunt_logs))
+            self.assertGreater(winning_app.inventory_state["gold"], 0)
 
             winning_app.perform_action("report")
             self.assertEqual(winning_app.quest_state().status, QuestStatus.COMPLETED)
@@ -79,9 +84,11 @@ class PlayableSliceTests(unittest.TestCase):
             resumed = self._build_app(tmp_dir)
             resumed.continue_game()
             status_logs = resumed.perform_action("status")
+            inventory_logs = resumed.perform_action("inventory")
 
             self.assertTrue(any("last_event_id:event.ch01.port_request" in line for line in status_logs))
             self.assertEqual(resumed.quest_state().status, QuestStatus.READY_TO_COMPLETE)
+            self.assertTrue(any(line.startswith("gold:") for line in inventory_logs))
 
     def test_continue_detects_missing_or_broken_save(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

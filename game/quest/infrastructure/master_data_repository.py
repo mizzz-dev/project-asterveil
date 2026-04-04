@@ -40,6 +40,10 @@ class QuestMasterDataRepository:
                 reward=QuestReward(
                     exp=int(reward_block.get("exp", 0)),
                     gold=int(reward_block.get("gold", 0)),
+                    items=tuple(
+                        (str(item["item_id"]), int(item["amount"]))
+                        for item in reward_block.get("items", [])
+                    ),
                     completion_flag=reward_block.get("completion_flag"),
                 ),
             )
@@ -86,6 +90,15 @@ class QuestMasterDataRepository:
                         "quests.sample.json objective missing "
                         f"field={field} quest={quest['id']} objective={objective.get('id')}"
                     )
+        reward = quest["reward"]
+        if "items" in reward:
+            for item in reward["items"]:
+                for field in ["item_id", "amount"]:
+                    if field not in item:
+                        raise ValueError(
+                            "quests.sample.json reward.items missing "
+                            f"field={field} quest={quest['id']}"
+                        )
 
     def _validate_event(self, event: dict) -> None:
         required = ["id", "title", "steps"]
