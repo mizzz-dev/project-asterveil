@@ -10,6 +10,9 @@
       {
         "character_id": "char.main.rion",
         "level": 8,
+        "current_hp": 108,
+        "current_sp": 88,
+        "alive": true,
         "equipped": {
           "weapon": "equip.weapon.bronze_blade"
         },
@@ -20,17 +23,24 @@
   "quest_state": {
     "quest.ch01.missing_port_record": {
       "status": "in_progress",
-      "objective_progress": [1, 0]
+      "objective_progress": [1],
+      "reward_claimed": false
     }
   },
   "world_flags": {
-    "chapter.current": 1,
-    "event.ch01.port_intro": true
+    "flag.ch01.port_wraith_battle_seen": true,
+    "chapter.current": 1
+  },
+  "progression": {
+    "last_event_id": "event.ch01.port_request"
   },
   "inventory_state": {
     "gold": 320,
     "items": {
       "item.material.memory_shard": 3
     }
+  },
+  "meta": {
+    "save_slot": "slot_01"
   }
 }
