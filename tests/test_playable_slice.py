@@ -37,6 +37,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(app.inventory_state["gold"], 300)
             self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 3)
             self.assertEqual(app.inventory_state["items"]["item.consumable.antidote_leaf"], 1)
+            self.assertEqual(app.party_members[0].unlocked_skill_ids, ["skill.striker.flare_slash"])
 
     def test_continue_loads_saved_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -70,11 +71,13 @@ class PlayableSliceTests(unittest.TestCase):
             winning_app.last_event_id = losing_app.last_event_id
             winning_app.inventory_state = losing_app.inventory_state
             winning_app.location_state = losing_app.location_state
+            winning_app.party_members[0].current_exp = 440
 
             hunt_logs = winning_app.perform_action("hunt")
             self.assertIn("quest_status_changed:quest.ch01.missing_port_record:ready_to_complete", hunt_logs)
             self.assertEqual(winning_app.quest_state().status, QuestStatus.READY_TO_COMPLETE)
             self.assertTrue(any(log.startswith("exp_applied:") for log in hunt_logs))
+            self.assertTrue(any(log.startswith("learned_skill:char.main.rion:skill.striker.venom_edge") for log in hunt_logs))
             self.assertGreater(winning_app.inventory_state["gold"], 0)
 
             winning_app.perform_action("report")
@@ -150,6 +153,7 @@ class PlayableSliceTests(unittest.TestCase):
             logs = app.perform_action("status")
             usable = app.perform_action("use_item")
             self.assertTrue(any(line.startswith("member:char.main.rion") for line in logs))
+            self.assertTrue(any("skills=['skill.striker.flare_slash']" in line for line in logs))
             self.assertTrue(any(line.startswith("usable_item:item.consumable.mini_potion") for line in usable))
 
     def test_shop_purchase_updates_inventory_and_gold(self) -> None:

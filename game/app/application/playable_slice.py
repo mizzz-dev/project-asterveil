@@ -8,6 +8,7 @@ from typing import Callable
 from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
 from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
+from game.app.application.skill_learning_service import LearnableSkill, SkillLearningService
 from game.app.application.dialogue_event_service import DialogueService, LocationEventService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
@@ -50,7 +51,24 @@ class PlayableSliceApplication:
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
-        self._reward_service = RewardApplicationService()
+        self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
+        raw_skill_learns = self._app_master_repo.load_skill_learns()
+        self._skill_learning_service = SkillLearningService(
+            learnable_by_character={
+                character_id: tuple(
+                    LearnableSkill(
+                        skill_id=entry["skill_id"],
+                        required_level=entry["required_level"],
+                        learn_type=entry.get("learn_type", "auto"),
+                        description=entry.get("description", ""),
+                    )
+                    for entry in entries
+                )
+                for character_id, entries in raw_skill_learns.items()
+            },
+            initial_skill_ids_by_character=self._character_initial_skill_ids,
+        )
+        self._reward_service = RewardApplicationService(skill_learning=self._skill_learning_service)
         self._item_use_service = ItemUseService()
         self._shop_repo = ShopMasterDataRepository(master_root)
         self._location_repo = LocationMasterDataRepository(master_root)
@@ -439,7 +457,8 @@ class PlayableSliceApplication:
                 f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
                 f"hp={final['current_hp']}/{final['max_hp']}:sp={final['current_sp']}/{final['max_sp']}:"
                 f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}:"
-                f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}"
+                f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}:"
+                f"skills={member.unlocked_skill_ids}"
             )
         return lines
 
@@ -617,7 +636,7 @@ class PlayableSliceApplication:
                 spd=18,
                 alive=True,
                 equipped={"weapon": "equip.weapon.bronze_blade"},
-                unlocked_skill_ids=["skill.striker.flare_slash"],
+                unlocked_skill_ids=list(self._skill_learning_service.initial_skill_ids_for_character("char.main.rion")),
             )
         ]
 

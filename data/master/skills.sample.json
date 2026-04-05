@@ -12,6 +12,30 @@
     "precast_warning": false
   },
   {
+    "id": "skill.striker.venom_edge",
+    "target_type": "single",
+    "cost": { "sp": 10, "cooldown": 0 },
+    "effect_blocks": [
+      { "type": "damage", "element": "none", "power": 1.1 },
+      { "type": "apply_effect", "effect_id": "effect.ailment.poison" }
+    ],
+    "weight": 14,
+    "break_power": 8,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.striker.guard_break",
+    "target_type": "single",
+    "cost": { "sp": 8, "cooldown": 0 },
+    "effect_blocks": [
+      { "type": "damage", "element": "none", "power": 0.8 },
+      { "type": "apply_effect", "effect_id": "effect.debuff.defense_down" }
+    ],
+    "weight": 10,
+    "break_power": 12,
+    "precast_warning": false
+  },
+  {
     "id": "skill.enemy.venom_bite",
     "target_type": "single",
     "cost": { "sp": 120, "cooldown": 0 },
