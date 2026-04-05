@@ -6,6 +6,7 @@ from game.battle.domain.entities import (
     ActionCommand,
     CombatantState,
     SkillDefinition,
+    StatusEffectDefinition,
     Team,
     UnitDefinition,
 )
@@ -16,6 +17,7 @@ from game.battle.domain.services import BattleState, execute_turn
 class BattleSession:
     state: BattleState
     skills: dict[str, SkillDefinition]
+    effect_definitions: dict[str, StatusEffectDefinition]
 
     @classmethod
     def from_definitions(
@@ -23,6 +25,7 @@ class BattleSession:
         player_units: list[UnitDefinition],
         enemy_units: list[UnitDefinition],
         skills: dict[str, SkillDefinition],
+        effect_definitions: dict[str, StatusEffectDefinition] | None = None,
     ) -> "BattleSession":
         combatants: dict[str, CombatantState] = {}
         for unit in [*player_units, *enemy_units]:
@@ -37,7 +40,7 @@ class BattleSession:
                 sp=100,
             )
 
-        return cls(state=BattleState(combatants), skills=skills)
+        return cls(state=BattleState(combatants), skills=skills, effect_definitions=effect_definitions or {})
 
     def default_command_factory(self, state: BattleState, actor: CombatantState) -> ActionCommand:
         enemy_team = Team.ENEMY if actor.team == Team.PLAYER else Team.PLAYER
@@ -80,6 +83,7 @@ class BattleSession:
                 actor_id=actor_id,
                 command_factory=self.default_command_factory,
                 skills=self.skills,
+                effect_definitions=self.effect_definitions,
             )
             if turn.acted:
                 results.append(turn)

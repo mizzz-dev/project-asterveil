@@ -16,6 +16,12 @@ class PlayerProfileState:
 
 
 @dataclass
+class PartyActiveEffectState:
+    effect_id: str
+    remaining_turns: int
+
+
+@dataclass
 class PartyMemberState:
     character_id: str
     level: int
@@ -31,6 +37,7 @@ class PartyMemberState:
     alive: bool = True
     equipped: dict[str, str] = field(default_factory=dict)
     unlocked_skill_ids: list[str] = field(default_factory=list)
+    active_effects: list[PartyActiveEffectState] = field(default_factory=list)
 
 
 @dataclass
@@ -76,6 +83,13 @@ class SaveData:
                         "alive": member.alive,
                         "equipped": member.equipped,
                         "unlocked_skill_ids": member.unlocked_skill_ids,
+                        "active_effects": [
+                            {
+                                "effect_id": effect.effect_id,
+                                "remaining_turns": effect.remaining_turns,
+                            }
+                            for effect in member.active_effects
+                        ],
                     }
                     for member in self.party_members
                 ]
@@ -136,6 +150,14 @@ class SaveData:
                     alive=bool(member["alive"]),
                     equipped=dict(member.get("equipped", {})),
                     unlocked_skill_ids=[str(skill_id) for skill_id in member.get("unlocked_skill_ids", [])],
+                    active_effects=[
+                        PartyActiveEffectState(
+                            effect_id=str(effect.get("effect_id")),
+                            remaining_turns=int(effect.get("remaining_turns", 0)),
+                        )
+                        for effect in member.get("active_effects", [])
+                        if effect.get("effect_id")
+                    ],
                 )
             )
 

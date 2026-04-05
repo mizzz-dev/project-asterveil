@@ -20,6 +20,7 @@ class ShopSliceTests(unittest.TestCase):
             {
                 "item.consumable.mini_potion",
                 "item.consumable.focus_drop",
+                "item.consumable.antidote_leaf",
                 "equip.weapon.iron_blade",
                 "equip.armor.leather_jacket",
             },

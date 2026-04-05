@@ -23,6 +23,27 @@ class SkillDefinition:
     target_type: str
     sp_cost: int
     power: float
+    apply_effect_ids: tuple[str, ...] = tuple()
+
+
+@dataclass(frozen=True)
+class StatusEffectDefinition:
+    effect_id: str
+    name: str
+    effect_type: str
+    target_stat: str
+    magnitude: float
+    duration_turns: int
+    application_rule: str
+    clear_on_rest: bool
+    removable_by_item: bool
+    description: str
+
+
+@dataclass
+class ActiveEffectState:
+    effect_id: str
+    remaining_turns: int
 
 
 @dataclass(frozen=True)
@@ -44,6 +65,11 @@ class CombatantState:
     spd: int
     sp: int = 0
     alive: bool = True
+    active_effects: list[ActiveEffectState] = None
+
+    def __post_init__(self) -> None:
+        if self.active_effects is None:
+            self.active_effects = []
 
     def apply_damage(self, amount: int) -> int:
         if not self.alive:
@@ -72,6 +98,7 @@ class ActionResult:
     damage: int
     target_hp_after: int
     target_alive: bool
+    logs: tuple[str, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -80,3 +107,4 @@ class TurnResult:
     actor_id: str | None
     summary: ActionResult | None
     winner: Team | None
+    logs: tuple[str, ...] = tuple()

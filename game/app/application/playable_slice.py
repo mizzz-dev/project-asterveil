@@ -56,12 +56,13 @@ class PlayableSliceApplication:
         self._location_repo = LocationMasterDataRepository(master_root)
         self._battle_executor = battle_executor or build_battle_executor(master_root)
         self._item_definitions = self._app_master_repo.load_items()
+        self._status_effect_definitions = self._app_master_repo.load_status_effects()
         self._equipment_definitions = self._app_master_repo.load_equipment()
         self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
         self._inns = self._app_master_repo.load_inns()
-        self._inn_service = InnService(self._inns, self._equipment_service)
+        self._inn_service = InnService(self._inns, self._equipment_service, self._status_effect_definitions)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
         self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
         self._travel_service = TravelService(self._location_repo.load_locations(), hub_location_id=HUB_LOCATION_ID)
@@ -83,6 +84,7 @@ class PlayableSliceApplication:
             "items": {
                 "item.consumable.mini_potion": 3,
                 "item.consumable.focus_drop": 2,
+                "item.consumable.antidote_leaf": 1,
                 "equip.weapon.bronze_blade": 1,
             },
         }
@@ -337,6 +339,7 @@ class PlayableSliceApplication:
             item_id=item_id,
             target_character_id=target_character_id,
             item_definitions=self._item_definitions,
+            status_effect_definitions=self._status_effect_definitions,
             party_members=self.party_members,
             inventory_state=self.inventory_state,
         )
@@ -435,7 +438,8 @@ class PlayableSliceApplication:
             lines.append(
                 f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
                 f"hp={final['current_hp']}/{final['max_hp']}:sp={final['current_sp']}/{final['max_sp']}:"
-                f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}"
+                f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}:"
+                f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}"
             )
         return lines
 
@@ -495,6 +499,7 @@ class PlayableSliceApplication:
                     alive=member.alive,
                     equipped=dict(member.equipped),
                     unlocked_skill_ids=list(member.unlocked_skill_ids),
+                    active_effects=[effect for effect in member.active_effects],
                 )
             )
         try:
@@ -502,6 +507,14 @@ class PlayableSliceApplication:
         except TypeError:
             battle_result = self._battle_executor(encounter_id)
         logs = [f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
+        for member in battle_party:
+            actual = next((m for m in self.party_members if m.character_id == member.character_id), None)
+            if actual is None:
+                continue
+            actual.current_hp = max(0, member.current_hp)
+            actual.current_sp = max(0, member.current_sp)
+            actual.alive = bool(member.alive and member.current_hp > 0)
+            actual.active_effects = [effect for effect in member.active_effects]
         if battle_result.player_won:
             battle_reward = self._battle_rewards.get(encounter_id)
             if battle_reward is not None:

@@ -3,6 +3,7 @@
     "id": "enemy.ch01.port_wraith",
     "level": 6,
     "stats": { "hp": 240, "atk": 18, "def": 14, "spd": 15 },
+    "skill_ids": ["skill.enemy.venom_bite"],
     "weakness": { "elements": ["light"], "weapon_types": ["slash"] },
     "skill_rotation_id": "rotation.enemy.port_wraith.basic",
     "drop_table_id": "drop.enemy.port_wraith"

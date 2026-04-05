@@ -19,9 +19,11 @@ class ItemUseService:
         item_id: str,
         target_character_id: str,
         item_definitions: dict[str, dict],
+        status_effect_definitions: dict[str, dict] | None = None,
         party_members: list[PartyMemberState],
         inventory_state: dict,
     ) -> ItemUseResult:
+        status_effect_definitions = status_effect_definitions or {}
         items = inventory_state.setdefault("items", {})
         owned = int(items.get(item_id, 0))
         if owned <= 0:
@@ -40,7 +42,7 @@ class ItemUseService:
 
         effect_type = definition.get("effect_type")
         effect_value = int(definition.get("effect_value", 0))
-        if effect_value <= 0:
+        if effect_type in {"recover_hp", "recover_sp"} and effect_value <= 0:
             return ItemUseResult(False, "invalid_effect", f"item_use_failed:invalid_effect_value:{item_id}")
 
         applied = False
@@ -52,6 +54,19 @@ class ItemUseService:
             before = target.current_sp
             target.current_sp = min(target.max_sp, target.current_sp + effect_value)
             applied = target.current_sp > before
+        elif effect_type == "cure_effect":
+            removable = {
+                str(effect_id)
+                for effect_id in definition.get("remove_effect_ids", [])
+                if status_effect_definitions.get(str(effect_id), {}).get("removable_by_item", False)
+            }
+            before_count = len(target.active_effects)
+            target.active_effects = [
+                effect
+                for effect in target.active_effects
+                if effect.effect_id not in removable
+            ]
+            applied = len(target.active_effects) < before_count
         else:
             return ItemUseResult(False, "unsupported_effect", f"item_use_failed:unsupported_effect:{item_id}")
 

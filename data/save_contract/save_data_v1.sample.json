@@ -26,6 +26,12 @@
         },
         "unlocked_skill_ids": [
           "skill.striker.flare_slash"
+        ],
+        "active_effects": [
+          {
+            "effect_id": "effect.ailment.poison",
+            "remaining_turns": 2
+          }
         ]
       }
     ]
