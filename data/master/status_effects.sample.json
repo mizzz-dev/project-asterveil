@@ -1,0 +1,26 @@
+[
+  {
+    "effect_id": "effect.ailment.poison",
+    "name": "毒",
+    "effect_type": "ailment",
+    "target_stat": "hp",
+    "magnitude": 0.1,
+    "duration_turns": 3,
+    "application_rule": "per_turn",
+    "clear_on_rest": true,
+    "removable_by_item": true,
+    "description": "行動終了時に最大HPの10%ダメージを受ける。"
+  },
+  {
+    "effect_id": "effect.debuff.defense_down",
+    "name": "防御低下",
+    "effect_type": "debuff",
+    "target_stat": "defense",
+    "magnitude": -0.25,
+    "duration_turns": 3,
+    "application_rule": "while_active",
+    "clear_on_rest": true,
+    "removable_by_item": true,
+    "description": "防御力が25%低下する。"
+  }
+]

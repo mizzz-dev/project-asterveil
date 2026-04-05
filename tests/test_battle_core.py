@@ -13,9 +13,10 @@ class BattleCoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repo = MasterDataRepository(Path("data/master"))
         self.skills = self.repo.load_skills()
+        self.effects = self.repo.load_status_effects()
         self.player = self.repo.load_character("char.main.rion")
         self.enemy = self.repo.load_enemy("enemy.ch01.port_wraith")
-        self.session = BattleSession.from_definitions([self.player], [self.enemy], self.skills)
+        self.session = BattleSession.from_definitions([self.player], [self.enemy], self.skills, self.effects)
         self.session.bind_unit_skills({
             self.player.id: self.player.skill_ids,
             self.enemy.id: self.enemy.skill_ids,
@@ -35,6 +36,7 @@ class BattleCoreTests(unittest.TestCase):
             state,
             ActionCommand(actor_id=attacker.unit_id, action_type="attack", target_id=target.unit_id),
             self.skills,
+            self.effects,
         )
         self.assertLess(target.hp, hp_before)
 
@@ -55,6 +57,7 @@ class BattleCoreTests(unittest.TestCase):
                 skill_id="skill.striker.flare_slash",
             ),
             self.skills,
+            self.effects,
         )
         self.assertLess(target.hp, hp_before)
         self.assertEqual(attacker.sp, sp_before - 12)
@@ -74,6 +77,61 @@ class BattleCoreTests(unittest.TestCase):
     def test_turn_order_depends_on_speed(self) -> None:
         order = self.session.state.turn_order()
         self.assertEqual(order[0], self.player.id)
+
+    def test_skill_applies_debuff_and_changes_damage(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        target = state.combatants[self.enemy.id]
+        actor.sp = 200
+
+        baseline = apply_action(
+            state,
+            ActionCommand(actor_id=actor.unit_id, action_type="attack", target_id=target.unit_id),
+            self.skills,
+            self.effects,
+        ).damage
+
+        apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=target.unit_id,
+                skill_id="skill.striker.flare_slash",
+            ),
+            self.skills,
+            self.effects,
+        )
+        boosted = apply_action(
+            state,
+            ActionCommand(actor_id=actor.unit_id, action_type="attack", target_id=target.unit_id),
+            self.skills,
+            self.effects,
+        ).damage
+        self.assertGreater(boosted, baseline)
+
+    def test_poison_ticks_and_expires(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.enemy.id]
+        target = state.combatants[self.player.id]
+        actor.sp = 200
+        hp_before = target.hp
+
+        apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=target.unit_id,
+                skill_id="skill.enemy.venom_bite",
+            ),
+            self.skills,
+            self.effects,
+        )
+        for _ in range(4):
+            self.session.step_round()
+        self.assertLess(target.hp, hp_before)
+        self.assertTrue(all(effect.effect_id != "effect.ailment.poison" for effect in target.active_effects))
 
 
 if __name__ == "__main__":

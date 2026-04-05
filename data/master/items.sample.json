@@ -24,6 +24,19 @@
     "description": "味方単体のSPを25回復する。"
   },
   {
+    "item_id": "item.consumable.antidote_leaf",
+    "id": "item.consumable.antidote_leaf",
+    "category": "consumable",
+    "item_type": "consumable",
+    "target_scope": "single_ally",
+    "effect_type": "cure_effect",
+    "effect_value": 1,
+    "remove_effect_ids": ["effect.ailment.poison", "effect.debuff.defense_down"],
+    "stackable": true,
+    "name": "解毒草",
+    "description": "味方単体の毒と防御低下を解除する。"
+  },
+  {
     "item_id": "item.material.memory_shard",
     "id": "item.material.memory_shard",
     "category": "material",

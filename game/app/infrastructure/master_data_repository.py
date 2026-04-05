@@ -29,6 +29,16 @@ class AppMasterDataRepository:
             items[item_id] = normalized
         return items
 
+    def load_status_effects(self) -> dict[str, dict]:
+        raw = json.loads((self._root / "status_effects.sample.json").read_text(encoding="utf-8"))
+        result: dict[str, dict] = {}
+        for entry in raw:
+            effect_id = str(entry.get("effect_id", ""))
+            if not effect_id:
+                raise ValueError("status_effects.sample.json missing field=effect_id")
+            result[effect_id] = dict(entry)
+        return result
+
     def load_equipment(self) -> dict[str, EquipmentDefinition]:
         raw = json.loads((self._root / "equipment.sample.json").read_text(encoding="utf-8"))
         equipment: dict[str, EquipmentDefinition] = {}

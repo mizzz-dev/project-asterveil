@@ -24,9 +24,15 @@ class InnStayResult:
 
 
 class InnService:
-    def __init__(self, inns: dict[str, InnDefinition], equipment_service: EquipmentService) -> None:
+    def __init__(
+        self,
+        inns: dict[str, InnDefinition],
+        equipment_service: EquipmentService,
+        status_effect_definitions: dict[str, dict] | None = None,
+    ) -> None:
         self._inns = inns
         self._equipment_service = equipment_service
+        self._status_effect_definitions = status_effect_definitions or {}
 
     def get_inn(self, inn_id: str) -> InnDefinition | None:
         return self._inns.get(inn_id)
@@ -67,6 +73,11 @@ class InnService:
             final = self._equipment_service.resolve_final_stats(member)
             member.current_hp = final["max_hp"]
             member.current_sp = final["max_sp"]
+            member.active_effects = [
+                effect
+                for effect in member.active_effects
+                if not self._status_effect_definitions.get(effect.effect_id, {}).get("clear_on_rest", False)
+            ]
 
         return InnStayResult(
             True,

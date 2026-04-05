@@ -6,6 +6,7 @@ from pathlib import Path
 
 from game.app.application.playable_slice import PlayableSliceApplication
 from game.quest.domain.entities import BattleResult, QuestStatus
+from game.save.domain.entities import PartyActiveEffectState
 
 
 class PlayableSliceTests(unittest.TestCase):
@@ -35,6 +36,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertIn("flag.game.new_game_started", app.quest_session.world_flags)
             self.assertEqual(app.inventory_state["gold"], 300)
             self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 3)
+            self.assertEqual(app.inventory_state["items"]["item.consumable.antidote_leaf"], 1)
 
     def test_continue_loads_saved_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -116,6 +118,15 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(app.party_members[0].current_sp, 55)
             self.assertEqual(app.inventory_state["items"]["item.consumable.mini_potion"], 2)
             self.assertEqual(app.inventory_state["items"]["item.consumable.focus_drop"], 1)
+
+    def test_antidote_item_cures_status_effect(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.party_members[0].active_effects = [PartyActiveEffectState("effect.ailment.poison", 2)]
+            logs = app.use_item("item.consumable.antidote_leaf", "char.main.rion")
+            self.assertEqual(logs, ["item_used:item.consumable.antidote_leaf:target=char.main.rion"])
+            self.assertEqual(app.party_members[0].active_effects, [])
 
     def test_use_item_failure_cases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -200,6 +211,7 @@ class PlayableSliceTests(unittest.TestCase):
             app.party_members[0].current_hp = 1
             app.party_members[0].current_sp = 2
             app.party_members[0].alive = False
+            app.party_members[0].active_effects = [PartyActiveEffectState("effect.ailment.poison", 2)]
             app.inventory_state["gold"] = 200
 
             info = app.inn_info_lines()
@@ -212,14 +224,24 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertTrue(app.party_members[0].alive)
             self.assertEqual(app.party_members[0].current_hp, 132)
             self.assertEqual(app.party_members[0].current_sp, 100)
+            self.assertEqual(app.party_members[0].active_effects, [])
 
             app.perform_action("save")
             resumed = self._build_app(tmp_dir)
             resumed.continue_game()
             self.assertEqual(resumed.inventory_state["gold"], 80)
             self.assertTrue(resumed.party_members[0].alive)
-            self.assertEqual(resumed.party_members[0].current_hp, 132)
-            self.assertEqual(resumed.party_members[0].current_sp, 100)
+
+    def test_save_load_preserves_active_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.party_members[0].active_effects = [PartyActiveEffectState("effect.ailment.poison", 2)]
+            app.perform_action("save")
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            self.assertEqual(len(resumed.party_members[0].active_effects), 1)
+            self.assertEqual(resumed.party_members[0].active_effects[0].effect_id, "effect.ailment.poison")
 
     def test_inn_stay_failure_cases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

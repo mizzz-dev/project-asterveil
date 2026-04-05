@@ -9,10 +9,11 @@ from game.battle.infrastructure.master_data_repository import MasterDataReposito
 def run_sample_battle() -> int:
     repo = MasterDataRepository(Path("data/master"))
     skills = repo.load_skills()
+    effects = repo.load_status_effects()
     player = repo.load_character("char.main.rion")
     enemy = repo.load_enemy("enemy.ch01.port_wraith")
 
-    session = BattleSession.from_definitions([player], [enemy], skills)
+    session = BattleSession.from_definitions([player], [enemy], skills, effects)
     session.bind_unit_skills({player.id: player.skill_ids, enemy.id: enemy.skill_ids})
 
     round_no = 1
@@ -28,6 +29,8 @@ def run_sample_battle() -> int:
                 f"- actor={summary.actor_id} action={summary.action_type}{skill_text} "
                 f"target={summary.target_id} damage={summary.damage} hp_after={summary.target_hp_after}"
             )
+            for log in turn.logs:
+                print(f"  * {log}")
         round_no += 1
 
     print(f"winner={session.state.winner()}")

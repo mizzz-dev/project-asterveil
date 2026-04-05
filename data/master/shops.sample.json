@@ -17,6 +17,12 @@
         "description": "集中力を回復する雫"
       },
       {
+        "item_id": "item.consumable.antidote_leaf",
+        "price": 35,
+        "stock_type": "unlimited",
+        "description": "毒と能力低下を治す薬草"
+      },
+      {
         "item_id": "equip.weapon.iron_blade",
         "price": 240,
         "stock_type": "unlimited",

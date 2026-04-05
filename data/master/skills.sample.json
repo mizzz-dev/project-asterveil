@@ -4,10 +4,23 @@
     "target_type": "single",
     "cost": { "sp": 12, "cooldown": 0 },
     "effect_blocks": [
-      { "type": "damage", "element": "fire", "power": 1.4 }
+      { "type": "damage", "element": "fire", "power": 1.4 },
+      { "type": "apply_effect", "effect_id": "effect.debuff.defense_down" }
     ],
     "weight": 18,
     "break_power": 20,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.enemy.venom_bite",
+    "target_type": "single",
+    "cost": { "sp": 120, "cooldown": 0 },
+    "effect_blocks": [
+      { "type": "damage", "element": "none", "power": 1.0 },
+      { "type": "apply_effect", "effect_id": "effect.ailment.poison" }
+    ],
+    "weight": 12,
+    "break_power": 10,
     "precast_warning": false
   }
 ]

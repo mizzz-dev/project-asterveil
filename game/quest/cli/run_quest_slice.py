@@ -10,6 +10,7 @@ from game.quest.application.session import QuestSliceSession
 from game.quest.domain.entities import BattleResult
 from game.quest.domain.services import QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
+from game.save.domain.entities import PartyActiveEffectState
 
 
 ENCOUNTER_TO_ENEMY_ID = {
@@ -20,6 +21,7 @@ ENCOUNTER_TO_ENEMY_ID = {
 def build_battle_executor(root: Path):
     battle_repo = MasterDataRepository(root)
     skills = battle_repo.load_skills()
+    effects = battle_repo.load_status_effects()
     base_player = battle_repo.load_character("char.main.rion")
 
     def execute(encounter_id: str, party_members: list[Any] | None = None) -> BattleResult:
@@ -42,10 +44,20 @@ def build_battle_executor(root: Path):
                 skill_ids=tuple(getattr(member, "unlocked_skill_ids", base_player.skill_ids)),
             )
         enemy = battle_repo.load_enemy(enemy_id)
-        session = BattleSession.from_definitions([player], [enemy], skills)
+        session = BattleSession.from_definitions([player], [enemy], skills, effects)
         session.bind_unit_skills({player.id: player.skill_ids, enemy.id: enemy.skill_ids})
 
         winner = session.run_until_finished()
+        if party_members:
+            actor_state = session.state.combatants[player.id]
+            member = party_members[0]
+            member.current_hp = actor_state.hp
+            member.current_sp = actor_state.sp
+            member.alive = actor_state.alive
+            member.active_effects = [
+                PartyActiveEffectState(effect_id=effect.effect_id, remaining_turns=effect.remaining_turns)
+                for effect in actor_state.active_effects
+            ]
         player_won = winner == Team.PLAYER
         defeated = (enemy_id,) if player_won else tuple()
         return BattleResult(encounter_id=encounter_id, player_won=player_won, defeated_enemy_ids=defeated)

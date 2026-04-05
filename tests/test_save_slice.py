@@ -11,7 +11,7 @@ from game.quest.domain.entities import QuestStatus
 from game.quest.domain.services import QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
 from game.save.application.session import SaveSliceApplicationService
-from game.save.domain.entities import PartyMemberState, SaveData
+from game.save.domain.entities import PartyActiveEffectState, PartyMemberState, SaveData
 from game.save.infrastructure.repository import InMemorySaveRepository, JsonFileSaveRepository
 
 
@@ -45,6 +45,7 @@ class SaveSliceTests(unittest.TestCase):
                 alive=True,
                 equipped={"weapon": "equip.weapon.bronze_blade"},
                 unlocked_skill_ids=["skill.striker.flare_slash"],
+                active_effects=[PartyActiveEffectState(effect_id="effect.ailment.poison", remaining_turns=2)],
             )
         ]
 
@@ -75,6 +76,7 @@ class SaveSliceTests(unittest.TestCase):
         self.assertIn("flag.ch01.port_wraith_battle_seen", resumed.world_flags)
         self.assertEqual(loaded.party_members[0].current_hp, 111)
         self.assertEqual(loaded.party_members[0].current_exp, 40)
+        self.assertEqual(loaded.party_members[0].active_effects[0].effect_id, "effect.ailment.poison")
 
         resumed.play_event("event.ch01.port_report")
         self.assertEqual(quest_state.status, QuestStatus.COMPLETED)
