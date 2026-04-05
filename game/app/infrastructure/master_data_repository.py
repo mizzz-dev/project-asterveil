@@ -102,6 +102,45 @@ class AppMasterDataRepository:
             )
         return inns
 
+    def load_initial_skill_ids_by_character(self) -> dict[str, tuple[str, ...]]:
+        raw = json.loads((self._root / "characters.sample.json").read_text(encoding="utf-8"))
+        result: dict[str, tuple[str, ...]] = {}
+        for entry in raw:
+            character_id = str(entry.get("id") or "")
+            if not character_id:
+                raise ValueError("characters.sample.json missing field=id")
+            initial_skill_ids = tuple(str(skill_id) for skill_id in entry.get("initial_skill_ids", []))
+            result[character_id] = initial_skill_ids
+        return result
+
+    def load_skill_learns(self) -> dict[str, tuple[dict, ...]]:
+        raw = json.loads((self._root / "skill_learns.sample.json").read_text(encoding="utf-8"))
+        result: dict[str, tuple[dict, ...]] = {}
+        for entry in raw:
+            character_id = str(entry.get("character_id") or "")
+            if not character_id:
+                raise ValueError("skill_learns.sample.json missing field=character_id")
+            learnable = []
+            for learn in entry.get("learnable_skills", []):
+                skill_id = str(learn.get("skill_id") or "")
+                if not skill_id:
+                    raise ValueError(f"skill_learns.sample.json missing skill_id character_id={character_id}")
+                required_level = int(learn.get("required_level", 0))
+                if required_level <= 0:
+                    raise ValueError(
+                        f"skill_learns.sample.json required_level must be >= 1 character_id={character_id} skill_id={skill_id}"
+                    )
+                learnable.append(
+                    {
+                        "skill_id": skill_id,
+                        "required_level": required_level,
+                        "learn_type": str(learn.get("learn_type", "auto")),
+                        "description": str(learn.get("description", "")),
+                    }
+                )
+            result[character_id] = tuple(learnable)
+        return result
+
     def _validate_reward_item(self, item: dict, valid_item_ids: set[str], source: str) -> RewardItem:
         for field in ["item_id", "amount"]:
             if field not in item:

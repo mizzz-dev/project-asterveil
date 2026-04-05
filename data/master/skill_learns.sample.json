@@ -1,0 +1,19 @@
+[
+  {
+    "character_id": "char.main.rion",
+    "learnable_skills": [
+      {
+        "skill_id": "skill.striker.venom_edge",
+        "required_level": 9,
+        "learn_type": "auto",
+        "description": "敵単体にダメージを与え、毒を付与する。"
+      },
+      {
+        "skill_id": "skill.striker.guard_break",
+        "required_level": 10,
+        "learn_type": "auto",
+        "description": "敵単体に小ダメージを与え、防御低下を付与する補助寄りスキル。"
+      }
+    ]
+  }
+]

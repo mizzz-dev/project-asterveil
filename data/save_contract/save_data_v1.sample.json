@@ -25,7 +25,8 @@
           "armor": "equip.armor.leather_jacket"
         },
         "unlocked_skill_ids": [
-          "skill.striker.flare_slash"
+          "skill.striker.flare_slash",
+          "skill.striker.venom_edge"
         ],
         "active_effects": [
           {

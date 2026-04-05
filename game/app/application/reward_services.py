@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from game.quest.domain.entities import QuestReward
+from game.app.application.skill_learning_service import SkillLearningService
 from game.save.domain.entities import PartyMemberState
 
 
@@ -52,17 +53,25 @@ class ProgressionService:
 
 
 class RewardApplicationService:
-    def __init__(self, progression: ProgressionService | None = None) -> None:
+    def __init__(
+        self,
+        progression: ProgressionService | None = None,
+        skill_learning: SkillLearningService | None = None,
+    ) -> None:
         self._progression = progression or ProgressionService()
+        self._skill_learning = skill_learning
 
     def apply(self, reward: RewardBundle, party_members: list[PartyMemberState], inventory_state: dict) -> list[str]:
         logs: list[str] = []
         if reward.exp > 0:
             for member in party_members:
+                previous_level = member.level
                 level_ups = self._progression.grant_exp(member, reward.exp)
                 logs.append(
                     f"exp_applied:{member.character_id}:exp={reward.exp}:level={member.level}:level_ups={level_ups}"
                 )
+                if self._skill_learning is not None and level_ups > 0:
+                    logs.extend(self._skill_learning.apply_level_up_skills(member, previous_level))
         if reward.gold > 0:
             inventory_state["gold"] = int(inventory_state.get("gold", 0)) + reward.gold
             logs.append(f"gold_applied:{reward.gold}:total={inventory_state['gold']}")
