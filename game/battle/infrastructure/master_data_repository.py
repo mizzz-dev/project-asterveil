@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from game.battle.domain.entities import SkillDefinition, Stats, StatusEffectDefinition, Team, UnitDefinition
+
+
+@dataclass(frozen=True)
+class EncounterEnemyDefinition:
+    enemy_id: str
+    count: int = 1
+    slot: str | None = None
+
+
+@dataclass(frozen=True)
+class EncounterDefinition:
+    encounter_id: str
+    enemies: tuple[EncounterEnemyDefinition, ...]
+    description: str = ""
 
 
 class MasterDataRepository:
@@ -24,11 +39,66 @@ class MasterDataRepository:
             result[item["id"]] = SkillDefinition(
                 id=item["id"],
                 target_type=item["target_type"],
+                target_scope=str(item.get("target_scope", self._normalize_target_scope(item["target_type"]))),
                 sp_cost=item["cost"]["sp"],
                 power=float(damage_block["power"]),
+                target_count=item.get("target_count"),
                 apply_effect_ids=apply_effect_ids,
             )
         return result
+
+    def load_encounters(self) -> dict[str, EncounterDefinition]:
+        encounters_path = self._root / "encounters.sample.json"
+        raw = json.loads(encounters_path.read_text(encoding="utf-8"))
+        encounters: dict[str, EncounterDefinition] = {}
+        for item in raw:
+            encounter_id = str(item.get("encounter_id") or item.get("id") or "")
+            if not encounter_id:
+                raise ValueError("encounters.sample.json missing field=encounter_id")
+
+            enemy_entries: list[EncounterEnemyDefinition] = []
+            if "enemies" in item:
+                for entry in item.get("enemies", []):
+                    enemy_id = str(entry.get("enemy_id") or "")
+                    if not enemy_id:
+                        raise ValueError(f"encounter enemy missing enemy_id encounter={encounter_id}")
+                    enemy_entries.append(
+                        EncounterEnemyDefinition(
+                            enemy_id=enemy_id,
+                            count=max(1, int(entry.get("count", 1))),
+                            slot=str(entry["slot"]) if "slot" in entry else None,
+                        )
+                    )
+            elif "enemy_id" in item:
+                enemy_entries.append(EncounterEnemyDefinition(enemy_id=str(item["enemy_id"]), count=1))
+            else:
+                raise ValueError(f"encounters.sample.json missing enemies encounter={encounter_id}")
+
+            encounters[encounter_id] = EncounterDefinition(
+                encounter_id=encounter_id,
+                enemies=tuple(enemy_entries),
+                description=str(item.get("description", "")),
+            )
+        return encounters
+
+    def build_enemy_party(self, encounter_id: str) -> tuple[list[UnitDefinition], dict[str, str]]:
+        encounters = self.load_encounters()
+        encounter = encounters.get(encounter_id)
+        if encounter is None:
+            raise ValueError(f"Unknown encounter_id: {encounter_id}")
+
+        units: list[UnitDefinition] = []
+        runtime_to_enemy_id: dict[str, str] = {}
+        for entry in encounter.enemies:
+            base_unit = self.load_enemy(entry.enemy_id)
+            for index in range(1, entry.count + 1):
+                runtime_id = f"{entry.enemy_id}#{index}"
+                if runtime_id in runtime_to_enemy_id:
+                    runtime_id = f"{entry.enemy_id}#{len(runtime_to_enemy_id) + 1}"
+                instance = replace(base_unit, id=runtime_id)
+                units.append(instance)
+                runtime_to_enemy_id[runtime_id] = entry.enemy_id
+        return units, runtime_to_enemy_id
 
     def load_status_effects(self) -> dict[str, StatusEffectDefinition]:
         effects_path = self._root / "status_effects.sample.json"
@@ -73,3 +143,6 @@ class MasterDataRepository:
             stats=Stats(hp=base["hp"], atk=base["atk"], defense=base["def"], spd=base["spd"]),
             skill_ids=tuple(item.get("skill_ids", [])),
         )
+
+    def _normalize_target_scope(self, target_type: str) -> str:
+        return "all_enemies" if target_type == "all" else "single_enemy"

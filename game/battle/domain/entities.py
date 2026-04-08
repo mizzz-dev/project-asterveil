@@ -21,8 +21,10 @@ class Stats:
 class SkillDefinition:
     id: str
     target_type: str
+    target_scope: str
     sp_cost: int
     power: float
+    target_count: int | None = None
     apply_effect_ids: tuple[str, ...] = tuple()
 
 
@@ -85,19 +87,28 @@ class CombatantState:
 class ActionCommand:
     actor_id: str
     action_type: str  # attack | skill
-    target_id: str
+    target_id: str | None = None
     skill_id: str | None = None
+
+
+@dataclass(frozen=True)
+class TargetResult:
+    target_id: str
+    damage: int
+    target_hp_after: int
+    target_alive: bool
 
 
 @dataclass(frozen=True)
 class ActionResult:
     actor_id: str
-    target_id: str
     action_type: str
     skill_id: str | None
+    target_id: str
     damage: int
     target_hp_after: int
     target_alive: bool
+    target_results: tuple[TargetResult, ...] = tuple()
     logs: tuple[str, ...] = tuple()
 
 

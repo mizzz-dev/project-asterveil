@@ -52,8 +52,8 @@ class SkillLearningSliceTests(unittest.TestCase):
     def test_load_skill_learn_definitions(self) -> None:
         loaded = self.app_repo.load_skill_learns()
         self.assertIn("char.main.rion", loaded)
-        self.assertEqual(loaded["char.main.rion"][0]["skill_id"], "skill.striker.venom_edge")
-        self.assertEqual(loaded["char.main.rion"][1]["required_level"], 10)
+        self.assertEqual(loaded["char.main.rion"][0]["skill_id"], "skill.striker.arc_wave")
+        self.assertEqual(loaded["char.main.rion"][2]["required_level"], 10)
 
     def test_initial_skills_and_level_up_learning_with_duplicate_protection(self) -> None:
         member = self._member(level=8)
@@ -63,9 +63,10 @@ class SkillLearningSliceTests(unittest.TestCase):
 
         member.level = 10
         learned_logs = self.skill_learning.apply_level_up_skills(member, previous_level=8)
+        self.assertIn("skill.striker.arc_wave", member.unlocked_skill_ids)
         self.assertIn("skill.striker.venom_edge", member.unlocked_skill_ids)
         self.assertIn("skill.striker.guard_break", member.unlocked_skill_ids)
-        self.assertEqual(len(learned_logs), 2)
+        self.assertEqual(len(learned_logs), 3)
 
         duplicate_logs = self.skill_learning.apply_level_up_skills(member, previous_level=9)
         self.assertEqual(duplicate_logs, [])
@@ -79,7 +80,7 @@ class SkillLearningSliceTests(unittest.TestCase):
 
     def test_battle_uses_only_learned_skills(self) -> None:
         base_player = self.battle_repo.load_character("char.main.rion")
-        enemy = self.battle_repo.load_enemy("enemy.ch01.port_wraith")
+        enemies, _ = self.battle_repo.build_enemy_party("encounter.ch01.port_wraith")
         skills = self.battle_repo.load_skills()
         effects = self.battle_repo.load_status_effects()
 
@@ -89,8 +90,8 @@ class SkillLearningSliceTests(unittest.TestCase):
             stats=base_player.stats,
             skill_ids=tuple(),
         )
-        session = BattleSession.from_definitions([no_skill_player], [enemy], skills, effects)
-        session.bind_unit_skills({no_skill_player.id: tuple(), enemy.id: enemy.skill_ids})
+        session = BattleSession.from_definitions([no_skill_player], enemies, skills, effects)
+        session.bind_unit_skills({no_skill_player.id: tuple(), **{enemy.id: enemy.skill_ids for enemy in enemies}})
         actor = session.state.combatants[no_skill_player.id]
         command = session.default_command_factory(session.state, actor)
         self.assertEqual(command.action_type, "attack")
@@ -101,12 +102,28 @@ class SkillLearningSliceTests(unittest.TestCase):
             stats=base_player.stats,
             skill_ids=("skill.striker.venom_edge",),
         )
-        learned_session = BattleSession.from_definitions([learned_player], [enemy], skills, effects)
-        learned_session.bind_unit_skills({learned_player.id: learned_player.skill_ids, enemy.id: enemy.skill_ids})
+        learned_session = BattleSession.from_definitions([learned_player], enemies, skills, effects)
+        learned_session.bind_unit_skills(
+            {learned_player.id: learned_player.skill_ids, **{enemy.id: enemy.skill_ids for enemy in enemies}}
+        )
         learned_actor = learned_session.state.combatants[learned_player.id]
         learned_command = learned_session.default_command_factory(learned_session.state, learned_actor)
         self.assertEqual(learned_command.action_type, "skill")
         self.assertEqual(learned_command.skill_id, "skill.striker.venom_edge")
+
+        aoe_player = base_player.__class__(
+            id=base_player.id,
+            team=base_player.team,
+            stats=base_player.stats,
+            skill_ids=("skill.striker.arc_wave",),
+        )
+        aoe_session = BattleSession.from_definitions([aoe_player], enemies, skills, effects)
+        aoe_session.bind_unit_skills({aoe_player.id: aoe_player.skill_ids, **{enemy.id: enemy.skill_ids for enemy in enemies}})
+        aoe_actor = aoe_session.state.combatants[aoe_player.id]
+        aoe_command = aoe_session.default_command_factory(aoe_session.state, aoe_actor)
+        self.assertEqual(aoe_command.action_type, "skill")
+        self.assertEqual(aoe_command.skill_id, "skill.striker.arc_wave")
+        self.assertIsNone(aoe_command.target_id)
 
     def test_save_load_preserves_learned_skills(self) -> None:
         raw = {

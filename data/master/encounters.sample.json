@@ -1,0 +1,40 @@
+[
+  {
+    "encounter_id": "encounter.ch01.port_wraith_single",
+    "description": "港の亡霊1体との基本戦闘。",
+    "enemies": [
+      {
+        "enemy_id": "enemy.ch01.port_wraith",
+        "count": 1,
+        "slot": "front"
+      }
+    ]
+  },
+  {
+    "encounter_id": "encounter.ch01.port_wraith",
+    "description": "港の亡霊が2体同時に出現する編成。",
+    "enemies": [
+      {
+        "enemy_id": "enemy.ch01.port_wraith",
+        "count": 2,
+        "slot": "front"
+      }
+    ]
+  },
+  {
+    "encounter_id": "encounter.ch01.harbor_miasma_patrol",
+    "description": "亡霊と瘴気スライムの混成編成。",
+    "enemies": [
+      {
+        "enemy_id": "enemy.ch01.port_wraith",
+        "count": 1,
+        "slot": "front"
+      },
+      {
+        "enemy_id": "enemy.ch01.brine_slime",
+        "count": 2,
+        "slot": "mid"
+      }
+    ]
+  }
+]
