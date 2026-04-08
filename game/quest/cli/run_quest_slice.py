@@ -13,11 +13,6 @@ from game.quest.infrastructure.master_data_repository import QuestMasterDataRepo
 from game.save.domain.entities import PartyActiveEffectState
 
 
-ENCOUNTER_TO_ENEMY_ID = {
-    "encounter.ch01.port_wraith": "enemy.ch01.port_wraith",
-}
-
-
 def build_battle_executor(root: Path):
     battle_repo = MasterDataRepository(root)
     skills = battle_repo.load_skills()
@@ -25,10 +20,6 @@ def build_battle_executor(root: Path):
     base_player = battle_repo.load_character("char.main.rion")
 
     def execute(encounter_id: str, party_members: list[Any] | None = None) -> BattleResult:
-        if encounter_id not in ENCOUNTER_TO_ENEMY_ID:
-            raise ValueError(f"Unknown encounter_id: {encounter_id}")
-
-        enemy_id = ENCOUNTER_TO_ENEMY_ID[encounter_id]
         player = base_player
         if party_members:
             member = party_members[0]
@@ -43,9 +34,14 @@ def build_battle_executor(root: Path):
                 ),
                 skill_ids=tuple(getattr(member, "unlocked_skill_ids", base_player.skill_ids)),
             )
-        enemy = battle_repo.load_enemy(enemy_id)
-        session = BattleSession.from_definitions([player], [enemy], skills, effects)
-        session.bind_unit_skills({player.id: player.skill_ids, enemy.id: enemy.skill_ids})
+        enemies, runtime_to_enemy_id = battle_repo.build_enemy_party(encounter_id)
+        session = BattleSession.from_definitions([player], enemies, skills, effects)
+        session.bind_unit_skills(
+            {
+                player.id: player.skill_ids,
+                **{enemy.id: enemy.skill_ids for enemy in enemies},
+            }
+        )
 
         winner = session.run_until_finished()
         if party_members:
@@ -59,7 +55,11 @@ def build_battle_executor(root: Path):
                 for effect in actor_state.active_effects
             ]
         player_won = winner == Team.PLAYER
-        defeated = (enemy_id,) if player_won else tuple()
+        defeated = tuple(
+            runtime_to_enemy_id[combatant.unit_id]
+            for combatant in session.state.combatants.values()
+            if combatant.team == Team.ENEMY and not combatant.alive
+        )
         return BattleResult(encounter_id=encounter_id, player_won=player_won, defeated_enemy_ids=defeated)
 
     return execute

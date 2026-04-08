@@ -9,6 +9,7 @@ from .entities import (
     CombatantState,
     SkillDefinition,
     StatusEffectDefinition,
+    TargetResult,
     Team,
     TurnResult,
 )
@@ -128,12 +129,12 @@ def apply_action(
 ) -> ActionResult:
     effect_definitions = effect_definitions or {}
     attacker = state.combatants[command.actor_id]
-    target = state.combatants[command.target_id]
     logs: list[str] = []
 
     if command.action_type == "attack":
         power = BASE_ATTACK_POWER
         skill_id = None
+        target_scope = "single_enemy"
     elif command.action_type == "skill":
         if command.skill_id is None:
             raise ValueError("skill action requires skill_id")
@@ -143,23 +144,67 @@ def apply_action(
         attacker.sp -= skill.sp_cost
         power = skill.power
         skill_id = skill.id
-        for effect_id in skill.apply_effect_ids:
-            logs.append(_apply_effect(target, effect_id, effect_definitions))
+        target_scope = skill.target_scope
     else:
         raise ValueError(f"Unsupported action_type: {command.action_type}")
 
-    damage = calculate_damage(attacker, target, power, effect_definitions)
-    target.apply_damage(damage)
+    targets = _resolve_targets(state, attacker, target_scope, command.target_id)
+    per_target: list[TargetResult] = []
+    for target in targets:
+        if command.action_type == "skill":
+            for effect_id in skill.apply_effect_ids:
+                logs.append(_apply_effect(target, effect_id, effect_definitions))
+        damage = calculate_damage(attacker, target, power, effect_definitions)
+        target.apply_damage(damage)
+        per_target.append(
+            TargetResult(
+                target_id=target.unit_id,
+                damage=damage,
+                target_hp_after=target.hp,
+                target_alive=target.alive,
+            )
+        )
+    head = per_target[0]
     return ActionResult(
         actor_id=attacker.unit_id,
-        target_id=target.unit_id,
         action_type=command.action_type,
         skill_id=skill_id,
-        damage=damage,
-        target_hp_after=target.hp,
-        target_alive=target.alive,
+        target_id=head.target_id,
+        damage=head.damage,
+        target_hp_after=head.target_hp_after,
+        target_alive=head.target_alive,
+        target_results=tuple(per_target),
         logs=tuple(logs),
     )
+
+
+def _resolve_targets(
+    state: BattleState,
+    attacker: CombatantState,
+    target_scope: str,
+    target_id: str | None,
+) -> list[CombatantState]:
+    enemy_team = Team.ENEMY if attacker.team == Team.PLAYER else Team.PLAYER
+    living = [unit for unit in state.combatants.values() if unit.team == enemy_team and unit.alive]
+    living.sort(key=lambda unit: unit.unit_id)
+    if not living:
+        raise ValueError("対象となる生存ユニットが存在しません")
+
+    if target_scope == "all_enemies":
+        return living
+    if target_scope != "single_enemy":
+        raise ValueError(f"未対応のtarget_scopeです: {target_scope}")
+    if target_id is None:
+        raise ValueError("single_enemy の行動には target_id が必要です")
+
+    target = state.combatants.get(target_id)
+    if target is None:
+        raise ValueError(f"target_id が不正です: {target_id}")
+    if target.team != enemy_team:
+        raise ValueError(f"対象チームが不正です: actor={attacker.team.value}, target={target.team.value}")
+    if not target.alive:
+        raise ValueError(f"撃破済み対象は選択できません: {target_id}")
+    return [target]
 
 
 def execute_turn(

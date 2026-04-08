@@ -3,6 +3,12 @@
     "character_id": "char.main.rion",
     "learnable_skills": [
       {
+        "skill_id": "skill.striker.arc_wave",
+        "required_level": 9,
+        "learn_type": "auto",
+        "description": "敵全体に光属性ダメージを与える。"
+      },
+      {
         "skill_id": "skill.striker.venom_edge",
         "required_level": 9,
         "learn_type": "auto",

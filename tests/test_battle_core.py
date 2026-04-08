@@ -15,17 +15,24 @@ class BattleCoreTests(unittest.TestCase):
         self.skills = self.repo.load_skills()
         self.effects = self.repo.load_status_effects()
         self.player = self.repo.load_character("char.main.rion")
-        self.enemy = self.repo.load_enemy("enemy.ch01.port_wraith")
-        self.session = BattleSession.from_definitions([self.player], [self.enemy], self.skills, self.effects)
+        self.enemies, _ = self.repo.build_enemy_party("encounter.ch01.port_wraith")
+        self.enemy = self.enemies[0]
+        self.session = BattleSession.from_definitions([self.player], self.enemies, self.skills, self.effects)
         self.session.bind_unit_skills({
             self.player.id: self.player.skill_ids,
-            self.enemy.id: self.enemy.skill_ids,
+            **{enemy.id: enemy.skill_ids for enemy in self.enemies},
         })
 
     def test_initialization_from_master_data(self) -> None:
         self.assertIn(self.player.id, self.session.state.combatants)
-        self.assertIn(self.enemy.id, self.session.state.combatants)
+        self.assertGreaterEqual(len([enemy for enemy in self.enemies if enemy.team == Team.ENEMY]), 2)
         self.assertEqual(self.session.state.combatants[self.player.id].hp, 120)
+
+    def test_load_multi_enemy_encounters(self) -> None:
+        encounters = self.repo.load_encounters()
+        self.assertIn("encounter.ch01.port_wraith_single", encounters)
+        self.assertEqual(encounters["encounter.ch01.port_wraith"].enemies[0].count, 2)
+        self.assertEqual(len(encounters["encounter.ch01.harbor_miasma_patrol"].enemies), 2)
 
     def test_normal_attack_reduces_hp(self) -> None:
         state = self.session.state
@@ -70,8 +77,8 @@ class BattleCoreTests(unittest.TestCase):
         self.assertFalse(target.alive)
 
     def test_victory_judgement_when_enemy_annihilated(self) -> None:
-        target = self.session.state.combatants[self.enemy.id]
-        target.apply_damage(9999)
+        for target in [c for c in self.session.state.combatants.values() if c.team == Team.ENEMY]:
+            target.apply_damage(9999)
         self.assertEqual(self.session.state.winner(), Team.PLAYER)
 
     def test_turn_order_depends_on_speed(self) -> None:
@@ -132,6 +139,49 @@ class BattleCoreTests(unittest.TestCase):
             self.session.step_round()
         self.assertLess(target.hp, hp_before)
         self.assertTrue(all(effect.effect_id != "effect.ailment.poison" for effect in target.active_effects))
+
+    def test_single_target_requires_living_target(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        target = state.combatants[self.enemy.id]
+        actor.sp = 200
+        target.apply_damage(9999)
+
+        with self.assertRaisesRegex(ValueError, "撃破済み対象"):
+            apply_action(
+                state,
+                ActionCommand(
+                    actor_id=actor.unit_id,
+                    action_type="skill",
+                    target_id=target.unit_id,
+                    skill_id="skill.striker.flare_slash",
+                ),
+                self.skills,
+                self.effects,
+            )
+
+    def test_all_enemy_skill_hits_all_living_enemies(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        targets = [c for c in state.combatants.values() if c.team == Team.ENEMY and c.alive]
+        hp_before = {target.unit_id: target.hp for target in targets}
+
+        result = apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=targets[0].unit_id,
+                skill_id="skill.striker.arc_wave",
+            ),
+            self.skills,
+            self.effects,
+        )
+
+        self.assertEqual(len(result.target_results), len(targets))
+        for target in targets:
+            self.assertLess(target.hp, hp_before[target.unit_id])
 
 
 if __name__ == "__main__":

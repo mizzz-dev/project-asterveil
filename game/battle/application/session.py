@@ -53,10 +53,11 @@ class BattleSession:
             skill_id = unit_skill_ids[0]
             skill = self.skills[skill_id]
             if actor.sp >= skill.sp_cost:
+                target_id = None if skill.target_scope == "all_enemies" else target.unit_id
                 return ActionCommand(
                     actor_id=actor.unit_id,
                     action_type="skill",
-                    target_id=target.unit_id,
+                    target_id=target_id,
                     skill_id=skill_id,
                 )
 
