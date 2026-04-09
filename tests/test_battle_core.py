@@ -160,6 +160,58 @@ class BattleCoreTests(unittest.TestCase):
                 self.effects,
             )
 
+    def test_all_enemy_skill_rejects_target_id(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        target = next(c for c in state.combatants.values() if c.team == Team.ENEMY)
+
+        with self.assertRaisesRegex(ValueError, "all_enemies"):
+            apply_action(
+                state,
+                ActionCommand(
+                    actor_id=actor.unit_id,
+                    action_type="skill",
+                    target_id=target.unit_id,
+                    skill_id="skill.striker.arc_wave",
+                ),
+                self.skills,
+                self.effects,
+            )
+
+    def test_all_enemy_skill_can_limit_target_count(self) -> None:
+        state = BattleState(combatants={unit_id: combatant for unit_id, combatant in self.session.state.combatants.items()})
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        limited_skills = dict(self.skills)
+        limited_skills["skill.test.arc_wave_two"] = self.skills["skill.striker.arc_wave"].__class__(
+            id="skill.test.arc_wave_two",
+            target_type="all",
+            target_scope="all_enemies",
+            sp_cost=0,
+            power=0.95,
+            target_count=2,
+            apply_effect_ids=tuple(),
+        )
+        living_enemy_ids = [
+            c.unit_id for c in sorted(state.combatants.values(), key=lambda c: c.unit_id) if c.team == Team.ENEMY and c.alive
+        ]
+
+        result = apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=None,
+                skill_id="skill.test.arc_wave_two",
+            ),
+            limited_skills,
+            self.effects,
+        )
+
+        self.assertEqual(len(result.target_results), 2)
+        self.assertEqual(tuple(target.target_id for target in result.target_results), tuple(living_enemy_ids[:2]))
+
     def test_all_enemy_skill_hits_all_living_enemies(self) -> None:
         state = self.session.state
         actor = state.combatants[self.player.id]
@@ -172,7 +224,7 @@ class BattleCoreTests(unittest.TestCase):
             ActionCommand(
                 actor_id=actor.unit_id,
                 action_type="skill",
-                target_id=targets[0].unit_id,
+                target_id=None,
                 skill_id="skill.striker.arc_wave",
             ),
             self.skills,
