@@ -155,7 +155,7 @@ def _run_talk_npc_flow(app: PlayableSliceApplication) -> list[str]:
     selected = _choose(options)
     if selected == "cancel":
         return ["dialogue_cancelled"]
-    return app.talk_to_npc(selected)
+    return app.talk_to_npc(selected, choice_selector=lambda items, _step_id: _choose(items))
 
 
 def run_playable_vertical_slice(save_path: Path) -> int:

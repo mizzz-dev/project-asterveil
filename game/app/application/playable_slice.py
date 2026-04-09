@@ -337,7 +337,11 @@ class PlayableSliceApplication:
             return [f"npc:none:location={self.location_state.current_location_id}"]
         return [f"npc:{npc.npc_id}:{npc.npc_name}" for npc in npcs]
 
-    def talk_to_npc(self, npc_id: str) -> list[str]:
+    def talk_to_npc(
+        self,
+        npc_id: str,
+        choice_selector: Callable[[list[tuple[str, str]], str], str] | None = None,
+    ) -> list[str]:
         if self.quest_session is None:
             raise ValueError("ゲームが開始されていません。")
         resolved = self._dialogue_service.resolve(
@@ -349,8 +353,71 @@ class PlayableSliceApplication:
         if not resolved.success:
             return list(resolved.lines)
         lines = [f"dialogue:{resolved.npc_id}:{resolved.npc_name}:entry={resolved.matched_entry_id or 'fallback'}"]
-        lines.extend(f"line:{resolved.npc_id}:{line}" for line in resolved.lines)
+        entry = resolved.entry
+        if entry is None or not entry.steps:
+            lines.extend(f"line:{resolved.npc_id}:{line}" for line in resolved.lines)
+            return lines
+
+        current_step = self._dialogue_service.initial_step(entry)
+        while current_step is not None:
+            lines.extend(f"line:{current_step.speaker}:{line}" for line in current_step.lines)
+            available_choices = self._dialogue_service.available_choices(current_step, self.quest_session.world_flags)
+            if not available_choices:
+                break
+            lines.extend(
+                f"choice:{index}:{choice.choice_id}:{choice.text}"
+                for index, choice in enumerate(available_choices, start=1)
+            )
+            if choice_selector is None:
+                lines.append(f"dialogue_choice_pending:step={current_step.step_id}")
+                break
+            selected_choice_id = choice_selector(
+                [(choice.choice_id, choice.text) for choice in available_choices],
+                current_step.step_id,
+            )
+            choice_result = self._dialogue_service.apply_choice(
+                entry=entry,
+                step_id=current_step.step_id,
+                choice_id=selected_choice_id,
+                world_flags=self.quest_session.world_flags,
+            )
+            if not choice_result.success:
+                lines.append(choice_result.code)
+                break
+            lines.append(f"choice_selected:{current_step.step_id}:{choice_result.selected_choice_id}")
+            for flag_id in choice_result.set_flags:
+                self.quest_session.world_flags.add(flag_id)
+                lines.append(f"flag_set:{flag_id}")
+            should_end = False
+            for effect in choice_result.effects:
+                effect_logs = self._run_dialogue_choice_effect(effect.action_type, effect.params)
+                lines.extend(effect_logs)
+                if effect.action_type == "end_dialogue":
+                    should_end = True
+            if should_end:
+                break
+            if not choice_result.next_step_id:
+                break
+            current_step = self._dialogue_service.find_step(entry, choice_result.next_step_id)
+            if current_step is None:
+                lines.append(f"dialogue_choice_failed:next_step_not_found:{choice_result.next_step_id}")
+                break
         return lines
+
+    def _run_dialogue_choice_effect(self, action_type: str, params: dict[str, str]) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        if action_type == "set_flag":
+            flag_id = params["flag_id"]
+            self.quest_session.world_flags.add(flag_id)
+            return [f"flag_set:{flag_id}"]
+        if action_type == "accept_quest":
+            return self.accept_quest(params["quest_id"])
+        if action_type == "start_battle":
+            return self._run_event_battle(params["encounter_id"])
+        if action_type == "end_dialogue":
+            return ["dialogue_ended_by_effect"]
+        return [f"dialogue_choice_effect_skipped:unsupported:{action_type}"]
 
     def use_item(self, item_id: str, target_character_id: str) -> list[str]:
         result = self._item_use_service.use_item(

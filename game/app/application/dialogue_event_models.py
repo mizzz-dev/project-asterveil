@@ -17,6 +17,32 @@ class DialogueEntry:
     priority: int
     lines: tuple[str, ...]
     condition: DialogueCondition = DialogueCondition()
+    steps: tuple["DialogueStep", ...] = tuple()
+
+
+@dataclass(frozen=True)
+class DialogueChoiceEffect:
+    action_type: str
+    params: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DialogueChoiceDefinition:
+    choice_id: str
+    text: str
+    next_step_id: str
+    set_flags: tuple[str, ...] = tuple()
+    required_flags: tuple[str, ...] = tuple()
+    excluded_flags: tuple[str, ...] = tuple()
+    effects: tuple[DialogueChoiceEffect, ...] = tuple()
+
+
+@dataclass(frozen=True)
+class DialogueStep:
+    step_id: str
+    speaker: str
+    lines: tuple[str, ...]
+    choices: tuple[DialogueChoiceDefinition, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -36,6 +62,17 @@ class DialogueResolutionResult:
     npc_name: str
     lines: tuple[str, ...]
     matched_entry_id: str | None = None
+    entry: DialogueEntry | None = None
+
+
+@dataclass(frozen=True)
+class DialogueChoiceResult:
+    success: bool
+    code: str
+    selected_choice_id: str | None = None
+    next_step_id: str | None = None
+    set_flags: tuple[str, ...] = tuple()
+    effects: tuple[DialogueChoiceEffect, ...] = tuple()
 
 
 @dataclass(frozen=True)

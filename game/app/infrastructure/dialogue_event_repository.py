@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 
 from game.app.application.dialogue_event_models import (
+    DialogueChoiceDefinition,
+    DialogueChoiceEffect,
     DialogueCondition,
     DialogueEntry,
+    DialogueStep,
     LocationEventAction,
     LocationEventCondition,
     LocationEventDefinition,
@@ -26,6 +29,48 @@ class DialogueEventMasterDataRepository:
                 if field not in row:
                     raise ValueError(f"dialogues.sample.json missing field={field}")
             condition_raw = row.get("condition", {})
+            steps_raw = row.get("steps", [])
+            steps: list[DialogueStep] = []
+            for step_raw in steps_raw:
+                for field in ["step_id", "speaker"]:
+                    if field not in step_raw:
+                        raise ValueError(f"dialogues.sample.json step missing field={field}")
+                line_values = step_raw.get("lines")
+                if line_values is None and "line" in step_raw:
+                    line_values = [step_raw.get("line")]
+                if line_values is None:
+                    line_values = []
+                choices: list[DialogueChoiceDefinition] = []
+                for choice_raw in step_raw.get("choices", []):
+                    for field in ["choice_id", "text", "next_step_id"]:
+                        if field not in choice_raw:
+                            raise ValueError(f"dialogues.sample.json choice missing field={field}")
+                    effects = tuple(
+                        DialogueChoiceEffect(
+                            action_type=str(effect.get("action_type")),
+                            params={str(k): str(v) for k, v in effect.get("params", {}).items()},
+                        )
+                        for effect in choice_raw.get("effects", [])
+                    )
+                    choices.append(
+                        DialogueChoiceDefinition(
+                            choice_id=str(choice_raw["choice_id"]),
+                            text=str(choice_raw["text"]),
+                            next_step_id=str(choice_raw["next_step_id"]),
+                            set_flags=tuple(str(flag) for flag in choice_raw.get("set_flags", [])),
+                            required_flags=tuple(str(flag) for flag in choice_raw.get("required_flags", [])),
+                            excluded_flags=tuple(str(flag) for flag in choice_raw.get("excluded_flags", [])),
+                            effects=effects,
+                        )
+                    )
+                steps.append(
+                    DialogueStep(
+                        step_id=str(step_raw["step_id"]),
+                        speaker=str(step_raw["speaker"]),
+                        lines=tuple(str(line) for line in line_values),
+                        choices=tuple(choices),
+                    )
+                )
             entry = DialogueEntry(
                 entry_id=str(row["entry_id"]),
                 priority=int(row.get("priority", 0)),
@@ -43,6 +88,7 @@ class DialogueEventMasterDataRepository:
                         else None
                     ),
                 ),
+                steps=tuple(steps),
             )
             dialogues_by_npc.setdefault(str(row["npc_id"]), []).append(entry)
 
