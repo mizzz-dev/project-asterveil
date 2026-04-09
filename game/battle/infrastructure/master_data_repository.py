@@ -36,13 +36,18 @@ class MasterDataRepository:
                 for block in item["effect_blocks"]
                 if block.get("type") == "apply_effect" and block.get("effect_id")
             )
+            raw_target_count = item.get("target_count")
+            target_count = int(raw_target_count) if raw_target_count is not None else None
+            if target_count is not None and target_count <= 0:
+                raise ValueError(f"skills.sample.json target_count must be >= 1 skill={item['id']}")
+
             result[item["id"]] = SkillDefinition(
                 id=item["id"],
                 target_type=item["target_type"],
                 target_scope=str(item.get("target_scope", self._normalize_target_scope(item["target_type"]))),
                 sp_cost=item["cost"]["sp"],
                 power=float(damage_block["power"]),
-                target_count=item.get("target_count"),
+                target_count=target_count,
                 apply_effect_ids=apply_effect_ids,
             )
         return result

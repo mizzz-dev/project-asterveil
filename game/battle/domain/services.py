@@ -135,6 +135,7 @@ def apply_action(
         power = BASE_ATTACK_POWER
         skill_id = None
         target_scope = "single_enemy"
+        target_count = 1
     elif command.action_type == "skill":
         if command.skill_id is None:
             raise ValueError("skill action requires skill_id")
@@ -145,10 +146,11 @@ def apply_action(
         power = skill.power
         skill_id = skill.id
         target_scope = skill.target_scope
+        target_count = skill.target_count
     else:
         raise ValueError(f"Unsupported action_type: {command.action_type}")
 
-    targets = _resolve_targets(state, attacker, target_scope, command.target_id)
+    targets = _resolve_targets(state, attacker, target_scope, command.target_id, target_count)
     per_target: list[TargetResult] = []
     for target in targets:
         if command.action_type == "skill":
@@ -183,6 +185,7 @@ def _resolve_targets(
     attacker: CombatantState,
     target_scope: str,
     target_id: str | None,
+    target_count: int | None,
 ) -> list[CombatantState]:
     enemy_team = Team.ENEMY if attacker.team == Team.PLAYER else Team.PLAYER
     living = [unit for unit in state.combatants.values() if unit.team == enemy_team and unit.alive]
@@ -191,7 +194,13 @@ def _resolve_targets(
         raise ValueError("対象となる生存ユニットが存在しません")
 
     if target_scope == "all_enemies":
-        return living
+        if target_id is not None:
+            raise ValueError("all_enemies の行動に target_id は指定できません")
+        if target_count is None:
+            return living
+        if target_count <= 0:
+            raise ValueError(f"target_count は1以上である必要があります: {target_count}")
+        return living[:target_count]
     if target_scope != "single_enemy":
         raise ValueError(f"未対応のtarget_scopeです: {target_scope}")
     if target_id is None:

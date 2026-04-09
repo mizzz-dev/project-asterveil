@@ -23,11 +23,12 @@
 
 - `target_scope` ベースで対象解決を分離
   - `single_enemy` は `target_id` 必須
-  - `all_enemies` は生存中の敵全体へ適用
+  - `all_enemies` は生存中の敵全体へ適用（`target_count` 指定時は先頭からN体）
 - スキル効果・ダメージを対象ごとに適用できるように最小拡張
 - `game.battle.application.command_selection` を追加し、CLI 入力層で
   - 単体対象時のみ `target_required` を表示して敵 index を選択
   - 全体対象時は `target_auto` として選択不要扱い
+  - `all_enemies` 行動へ `target_id` を渡した場合は不正入力として失敗
   - 無効な番号入力時は再入力を要求
 
 ### skill 定義
