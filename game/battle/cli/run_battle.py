@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from game.battle.application.command_selection import choose_player_command
 from game.battle.application.session import BattleSession
+from game.battle.domain.entities import Team
+from game.battle.domain.services import execute_turn
 from game.battle.infrastructure.master_data_repository import MasterDataRepository
 
 
@@ -18,7 +21,30 @@ def run_sample_battle() -> int:
 
     round_no = 1
     while not session.state.is_finished() and round_no <= 20:
-        results = session.step_round()
+        results = []
+        for actor_id in session.state.turn_order():
+            def _command_factory(state, acting_unit):
+                if acting_unit.team == Team.PLAYER:
+                    return choose_player_command(
+                        state=state,
+                        actor=acting_unit,
+                        skills=session.skills,
+                        unit_skill_ids=session.unit_skill_ids(acting_unit.unit_id),
+                    )
+                return session.default_command_factory(state, acting_unit)
+
+            turn = execute_turn(
+                state=session.state,
+                actor_id=actor_id,
+                command_factory=_command_factory,
+                skills=session.skills,
+                effect_definitions=session.effect_definitions,
+            )
+            if turn.acted:
+                results.append(turn)
+            if turn.winner is not None:
+                break
+
         print(f"[Round {round_no}]")
         enemy_lines = [
             f"{unit.unit_id}:hp={unit.hp}:alive={unit.alive}"

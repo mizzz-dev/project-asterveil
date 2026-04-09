@@ -25,6 +25,10 @@
   - `single_enemy` は `target_id` 必須
   - `all_enemies` は生存中の敵全体へ適用
 - スキル効果・ダメージを対象ごとに適用できるように最小拡張
+- `game.battle.application.command_selection` を追加し、CLI 入力層で
+  - 単体対象時のみ `target_required` を表示して敵 index を選択
+  - 全体対象時は `target_auto` として選択不要扱い
+  - 無効な番号入力時は再入力を要求
 
 ### skill 定義
 
@@ -43,7 +47,7 @@
 - バトル CLI 実行:
   - `python -m game.battle.cli.run_battle`
 - テスト実行:
-  - `python -m unittest tests.test_battle_core tests.test_skill_learning_slice`
+  - `python -m unittest tests.test_battle_core tests.test_battle_target_selection tests.test_skill_learning_slice`
   - `python -m unittest`
 
 ## 今回のスコープ外
