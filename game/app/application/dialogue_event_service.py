@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from game.app.application.dialogue_event_models import (
+    DialogueChoiceDefinition,
+    DialogueChoiceResult,
+    DialogueStep,
     DialogueResolutionResult,
     LocationEventDefinition,
     NpcDialogueDefinition,
@@ -51,8 +54,9 @@ class DialogueService:
                     code="ok",
                     npc_id=npc_id,
                     npc_name=definition.npc_name,
-                    lines=entry.lines,
+                    lines=self._entry_lines(entry),
                     matched_entry_id=entry.entry_id,
+                    entry=entry,
                 )
 
         if definition.fallback_lines:
@@ -72,6 +76,48 @@ class DialogueService:
             lines=(f"dialogue_failed:no_dialogue:{npc_id}",),
         )
 
+    def initial_step(self, entry) -> DialogueStep | None:
+        if not entry.steps:
+            return None
+        return entry.steps[0]
+
+    def find_step(self, entry, step_id: str) -> DialogueStep | None:
+        for step in entry.steps:
+            if step.step_id == step_id:
+                return step
+        return None
+
+    def available_choices(self, step: DialogueStep, world_flags: set[str]) -> tuple[DialogueChoiceDefinition, ...]:
+        return tuple(choice for choice in step.choices if self._choice_visible(choice, world_flags))
+
+    def apply_choice(
+        self,
+        entry,
+        step_id: str,
+        choice_id: str,
+        world_flags: set[str],
+    ) -> DialogueChoiceResult:
+        step = self.find_step(entry, step_id)
+        if step is None:
+            return DialogueChoiceResult(success=False, code=f"dialogue_choice_failed:step_not_found:{step_id}")
+        choices = self.available_choices(step, world_flags)
+        selected = next((choice for choice in choices if choice.choice_id == choice_id), None)
+        if selected is None:
+            return DialogueChoiceResult(success=False, code=f"dialogue_choice_failed:choice_not_found:{choice_id}")
+        if selected.next_step_id and self.find_step(entry, selected.next_step_id) is None:
+            return DialogueChoiceResult(
+                success=False,
+                code=f"dialogue_choice_failed:next_step_not_found:{selected.next_step_id}",
+            )
+        return DialogueChoiceResult(
+            success=True,
+            code="ok",
+            selected_choice_id=selected.choice_id,
+            next_step_id=selected.next_step_id,
+            set_flags=selected.set_flags,
+            effects=selected.effects,
+        )
+
     def _matches(self, condition, current_location_id, world_flags, quest_states) -> bool:
         if condition.required_location_id and condition.required_location_id != current_location_id:
             return False
@@ -86,6 +132,22 @@ class DialogueService:
             if state is None or state.status.value != expected_status:
                 return False
         return True
+
+    def _choice_visible(self, choice: DialogueChoiceDefinition, world_flags: set[str]) -> bool:
+        for flag_id in choice.required_flags:
+            if flag_id not in world_flags:
+                return False
+        for flag_id in choice.excluded_flags:
+            if flag_id in world_flags:
+                return False
+        return True
+
+    def _entry_lines(self, entry) -> tuple[str, ...]:
+        if entry.steps:
+            first = self.initial_step(entry)
+            if first is not None:
+                return first.lines
+        return entry.lines
 
 
 @dataclass
