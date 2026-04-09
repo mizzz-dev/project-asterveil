@@ -73,6 +73,9 @@ class BattleSession:
             return unit
         return tuple()
 
+    def unit_skill_ids(self, unit_id: str) -> tuple[str, ...]:
+        return self._unit_skill_ids(unit_id)
+
     def bind_unit_skills(self, unit_skills: dict[str, tuple[str, ...]]) -> None:
         self._unit_skills_cache = unit_skills
 
