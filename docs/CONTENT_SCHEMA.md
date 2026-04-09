@@ -42,12 +42,14 @@
 
 **必須**
 - `id`
-- `target_type` (`single|all_allies|all_enemies|self`)
+- `target_type`（実装最小値: `single|all`）
+- `target_scope`（実装最小値: `single_enemy|all_enemies`）
 - `cost` (`sp`,`cooldown`)
 - `effect_blocks[]`（ダメージ/回復/付与）
 - `weight`
 
 **任意**
+- `target_count`（`all_enemies` の先頭N体対象などの拡張用）
 - `break_power`
 - `combo_tag`
 - `precast_warning`
@@ -104,6 +106,21 @@
 **任意**
 - `choice_branches[]`
 - `camera_cues[]`
+
+## 3.7 エンカウント定義 (EncounterDefinition)
+
+**必須**
+- `encounter_id`（後方互換として `id` も許容）
+- `enemies[]`
+  - `enemy_id`
+  - `count`（省略時は `1`）
+
+**任意**
+- `description`
+- `enemies[].slot`（将来の列/位置拡張用メタ情報）
+
+**後方互換メモ**
+- 旧形式 `enemy_id` 単独指定も最小実装では読み込み許容とする。
 
 ---
 

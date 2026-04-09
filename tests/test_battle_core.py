@@ -34,6 +34,17 @@ class BattleCoreTests(unittest.TestCase):
         self.assertEqual(encounters["encounter.ch01.port_wraith"].enemies[0].count, 2)
         self.assertEqual(len(encounters["encounter.ch01.harbor_miasma_patrol"].enemies), 2)
 
+    def test_build_enemy_party_assigns_unique_runtime_ids_and_source_ids(self) -> None:
+        enemies, runtime_to_enemy_id = self.repo.build_enemy_party("encounter.ch01.harbor_miasma_patrol")
+        runtime_ids = [enemy.id for enemy in enemies]
+
+        self.assertEqual(len(runtime_ids), 3)
+        self.assertEqual(len(set(runtime_ids)), 3)
+        self.assertEqual(
+            sorted(runtime_to_enemy_id.values()),
+            ["enemy.ch01.brine_slime", "enemy.ch01.brine_slime", "enemy.ch01.port_wraith"],
+        )
+
     def test_normal_attack_reduces_hp(self) -> None:
         state = self.session.state
         attacker = state.combatants[self.player.id]
