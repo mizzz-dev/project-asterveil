@@ -53,7 +53,7 @@ class SkillLearningSliceTests(unittest.TestCase):
         loaded = self.app_repo.load_skill_learns()
         self.assertIn("char.main.rion", loaded)
         self.assertEqual(loaded["char.main.rion"][0]["skill_id"], "skill.striker.arc_wave")
-        self.assertEqual(loaded["char.main.rion"][2]["required_level"], 10)
+        self.assertTrue(any(entry["skill_id"] == "skill.striker.first_aid" for entry in loaded["char.main.rion"]))
 
     def test_initial_skills_and_level_up_learning_with_duplicate_protection(self) -> None:
         member = self._member(level=8)
@@ -66,7 +66,9 @@ class SkillLearningSliceTests(unittest.TestCase):
         self.assertIn("skill.striker.arc_wave", member.unlocked_skill_ids)
         self.assertIn("skill.striker.venom_edge", member.unlocked_skill_ids)
         self.assertIn("skill.striker.guard_break", member.unlocked_skill_ids)
-        self.assertEqual(len(learned_logs), 3)
+        self.assertIn("skill.striker.first_aid", member.unlocked_skill_ids)
+        self.assertIn("skill.striker.cleanse", member.unlocked_skill_ids)
+        self.assertEqual(len(learned_logs), 6)
 
         duplicate_logs = self.skill_learning.apply_level_up_skills(member, previous_level=9)
         self.assertEqual(duplicate_logs, [])

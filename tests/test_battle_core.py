@@ -27,6 +27,8 @@ class BattleCoreTests(unittest.TestCase):
         self.assertIn(self.player.id, self.session.state.combatants)
         self.assertGreaterEqual(len([enemy for enemy in self.enemies if enemy.team == Team.ENEMY]), 2)
         self.assertEqual(self.session.state.combatants[self.player.id].hp, 120)
+        self.assertEqual(self.skills["skill.striker.first_aid"].target_scope, "single_ally")
+        self.assertEqual(self.skills["skill.striker.cleanse"].effect_kind, "cure_effect")
 
     def test_load_multi_enemy_encounters(self) -> None:
         encounters = self.repo.load_encounters()
@@ -199,6 +201,7 @@ class BattleCoreTests(unittest.TestCase):
             id="skill.test.arc_wave_two",
             target_type="all",
             target_scope="all_enemies",
+            effect_kind="damage",
             sp_cost=0,
             power=0.95,
             target_count=2,
@@ -245,6 +248,137 @@ class BattleCoreTests(unittest.TestCase):
         self.assertEqual(len(result.target_results), len(targets))
         for target in targets:
             self.assertLess(target.hp, hp_before[target.unit_id])
+
+    def test_single_ally_heal_recovers_hp_with_cap(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        actor.hp = 10
+        hp_before = actor.hp
+
+        result = apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=actor.unit_id,
+                skill_id="skill.striker.first_aid",
+            ),
+            self.skills,
+            self.effects,
+        )
+
+        self.assertGreater(actor.hp, hp_before)
+        self.assertLessEqual(actor.hp, actor.max_hp)
+        self.assertEqual(result.damage, 0)
+        self.assertTrue(any(log.startswith(f"heal_applied:{actor.unit_id}:") for log in result.logs))
+
+    def test_all_ally_heal_applies_to_multiple_members(self) -> None:
+        ally = self.player.__class__(
+            id="char.support.test",
+            team=Team.PLAYER,
+            stats=self.player.stats.__class__(hp=90, atk=18, defense=15, spd=14),
+            skill_ids=tuple(),
+        )
+        session = BattleSession.from_definitions([self.player, ally], self.enemies, self.skills, self.effects)
+        session.bind_unit_skills({self.player.id: ("skill.striker.warm_prayer",), ally.id: tuple()})
+        actor = session.state.combatants[self.player.id]
+        actor.sp = 200
+        actor.hp = 40
+        target_ally = session.state.combatants[ally.id]
+        target_ally.hp = 20
+
+        result = apply_action(
+            session.state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=None,
+                skill_id="skill.striker.warm_prayer",
+            ),
+            self.skills,
+            self.effects,
+        )
+
+        self.assertEqual(len(result.target_results), 2)
+        self.assertGreater(actor.hp, 40)
+        self.assertGreater(target_ally.hp, 20)
+
+    def test_single_ally_cure_removes_poison(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        enemy_actor = state.combatants[self.enemy.id]
+        enemy_actor.sp = 200
+        apply_action(
+            state,
+            ActionCommand(
+                actor_id=enemy_actor.unit_id,
+                action_type="skill",
+                target_id=actor.unit_id,
+                skill_id="skill.enemy.venom_bite",
+            ),
+            self.skills,
+            self.effects,
+        )
+        self.assertTrue(any(effect.effect_id == "effect.ailment.poison" for effect in actor.active_effects))
+
+        result = apply_action(
+            state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=actor.unit_id,
+                skill_id="skill.striker.cleanse",
+            ),
+            self.skills,
+            self.effects,
+        )
+        self.assertFalse(any(effect.effect_id == "effect.ailment.poison" for effect in actor.active_effects))
+        self.assertTrue(any(log.startswith(f"effect_cured:{actor.unit_id}:") for log in result.logs))
+
+    def test_all_allies_rejects_target_id(self) -> None:
+        state = self.session.state
+        actor = state.combatants[self.player.id]
+        actor.sp = 200
+        with self.assertRaisesRegex(ValueError, "all_allies"):
+            apply_action(
+                state,
+                ActionCommand(
+                    actor_id=actor.unit_id,
+                    action_type="skill",
+                    target_id=actor.unit_id,
+                    skill_id="skill.striker.warm_prayer",
+                ),
+                self.skills,
+                self.effects,
+            )
+
+    def test_single_ally_rejects_knocked_out_target(self) -> None:
+        ally = self.player.__class__(
+            id="char.support.test",
+            team=Team.PLAYER,
+            stats=self.player.stats.__class__(hp=90, atk=18, defense=15, spd=14),
+            skill_ids=tuple(),
+        )
+        session = BattleSession.from_definitions([self.player, ally], self.enemies, self.skills, self.effects)
+        session.bind_unit_skills({self.player.id: ("skill.striker.first_aid",), ally.id: tuple()})
+        actor = session.state.combatants[self.player.id]
+        actor.sp = 200
+        down = session.state.combatants[ally.id]
+        down.apply_damage(9999)
+        with self.assertRaisesRegex(ValueError, "戦闘不能の味方"):
+            apply_action(
+                session.state,
+                ActionCommand(
+                    actor_id=actor.unit_id,
+                    action_type="skill",
+                    target_id=down.unit_id,
+                    skill_id="skill.striker.first_aid",
+                ),
+                self.skills,
+                self.effects,
+            )
 
 
 if __name__ == "__main__":
