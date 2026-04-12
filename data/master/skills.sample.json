@@ -3,10 +3,20 @@
     "id": "skill.striker.flare_slash",
     "target_type": "single",
     "target_scope": "single_enemy",
-    "cost": { "sp": 12, "cooldown": 0 },
+    "cost": {
+      "sp": 12,
+      "cooldown": 0
+    },
     "effect_blocks": [
-      { "type": "damage", "element": "fire", "power": 1.4 },
-      { "type": "apply_effect", "effect_id": "effect.debuff.defense_down" }
+      {
+        "type": "damage",
+        "element": "fire",
+        "power": 1.4
+      },
+      {
+        "type": "apply_effect",
+        "effect_id": "effect.debuff.defense_down"
+      }
     ],
     "weight": 18,
     "break_power": 20,
@@ -16,10 +26,20 @@
     "id": "skill.striker.venom_edge",
     "target_type": "single",
     "target_scope": "single_enemy",
-    "cost": { "sp": 10, "cooldown": 0 },
+    "cost": {
+      "sp": 10,
+      "cooldown": 0
+    },
     "effect_blocks": [
-      { "type": "damage", "element": "none", "power": 1.1 },
-      { "type": "apply_effect", "effect_id": "effect.ailment.poison" }
+      {
+        "type": "damage",
+        "element": "none",
+        "power": 1.1
+      },
+      {
+        "type": "apply_effect",
+        "effect_id": "effect.ailment.poison"
+      }
     ],
     "weight": 14,
     "break_power": 8,
@@ -29,10 +49,20 @@
     "id": "skill.striker.guard_break",
     "target_type": "single",
     "target_scope": "single_enemy",
-    "cost": { "sp": 8, "cooldown": 0 },
+    "cost": {
+      "sp": 8,
+      "cooldown": 0
+    },
     "effect_blocks": [
-      { "type": "damage", "element": "none", "power": 0.8 },
-      { "type": "apply_effect", "effect_id": "effect.debuff.defense_down" }
+      {
+        "type": "damage",
+        "element": "none",
+        "power": 0.8
+      },
+      {
+        "type": "apply_effect",
+        "effect_id": "effect.debuff.defense_down"
+      }
     ],
     "weight": 10,
     "break_power": 12,
@@ -42,10 +72,20 @@
     "id": "skill.enemy.venom_bite",
     "target_type": "single",
     "target_scope": "single_enemy",
-    "cost": { "sp": 120, "cooldown": 0 },
+    "cost": {
+      "sp": 120,
+      "cooldown": 0
+    },
     "effect_blocks": [
-      { "type": "damage", "element": "none", "power": 1.0 },
-      { "type": "apply_effect", "effect_id": "effect.ailment.poison" }
+      {
+        "type": "damage",
+        "element": "none",
+        "power": 1.0
+      },
+      {
+        "type": "apply_effect",
+        "effect_id": "effect.ailment.poison"
+      }
     ],
     "weight": 12,
     "break_power": 10,
@@ -55,12 +95,83 @@
     "id": "skill.striker.arc_wave",
     "target_type": "all",
     "target_scope": "all_enemies",
-    "cost": { "sp": 16, "cooldown": 0 },
+    "cost": {
+      "sp": 16,
+      "cooldown": 0
+    },
     "effect_blocks": [
-      { "type": "damage", "element": "light", "power": 0.95 }
+      {
+        "type": "damage",
+        "element": "light",
+        "power": 0.95
+      }
     ],
     "weight": 16,
     "break_power": 12,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.striker.first_aid",
+    "target_type": "single",
+    "target_scope": "single_ally",
+    "effect_kind": "heal",
+    "heal_power": 1.2,
+    "cost": {
+      "sp": 10,
+      "cooldown": 0
+    },
+    "effect_blocks": [
+      {
+        "type": "heal",
+        "power": 1.2
+      }
+    ],
+    "weight": 10,
+    "break_power": 0,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.striker.cleanse",
+    "target_type": "single",
+    "target_scope": "single_ally",
+    "effect_kind": "cure_effect",
+    "cost": {
+      "sp": 6,
+      "cooldown": 0
+    },
+    "remove_effect_ids": [
+      "effect.ailment.poison"
+    ],
+    "effect_blocks": [
+      {
+        "type": "cure_effect",
+        "effect_ids": [
+          "effect.ailment.poison"
+        ]
+      }
+    ],
+    "weight": 8,
+    "break_power": 0,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.striker.warm_prayer",
+    "target_type": "all",
+    "target_scope": "all_allies",
+    "effect_kind": "heal",
+    "heal_power": 0.8,
+    "cost": {
+      "sp": 18,
+      "cooldown": 0
+    },
+    "effect_blocks": [
+      {
+        "type": "heal",
+        "power": 0.8
+      }
+    ],
+    "weight": 8,
+    "break_power": 0,
     "precast_warning": false
   }
 ]

@@ -22,10 +22,13 @@ class SkillDefinition:
     id: str
     target_type: str
     target_scope: str
+    effect_kind: str
     sp_cost: int
     power: float
+    heal_power: float = 0.0
     target_count: int | None = None
     apply_effect_ids: tuple[str, ...] = tuple()
+    remove_effect_ids: tuple[str, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,14 @@ class CombatantState:
         if self.hp <= 0:
             self.alive = False
         return actual
+
+    def apply_heal(self, amount: int) -> int:
+        if not self.alive:
+            return 0
+        actual = max(0, amount)
+        healed = min(self.max_hp - self.hp, actual)
+        self.hp += healed
+        return healed
 
 
 @dataclass(frozen=True)

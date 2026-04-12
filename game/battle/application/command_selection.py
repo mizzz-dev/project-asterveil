@@ -18,6 +18,13 @@ class EnemyChoice:
     label: str
 
 
+@dataclass(frozen=True)
+class AllyChoice:
+    index: int
+    unit_id: str
+    label: str
+
+
 def living_enemy_choices(state: BattleState, actor: CombatantState) -> list[EnemyChoice]:
     enemy_team = Team.ENEMY if actor.team == Team.PLAYER else Team.PLAYER
     targets = [unit for unit in state.combatants.values() if unit.team == enemy_team and unit.alive]
@@ -51,6 +58,42 @@ def _prompt_enemy_target(
         matched = next((choice for choice in choices if choice.index == selected), None)
         if matched is None:
             write_output(f"target_input_invalid:範囲外です:{selected}")
+            continue
+        return matched.unit_id
+
+
+def living_ally_choices(state: BattleState, actor: CombatantState) -> list[AllyChoice]:
+    targets = [unit for unit in state.combatants.values() if unit.team == actor.team and unit.alive]
+    targets.sort(key=lambda unit: unit.unit_id)
+    return [
+        AllyChoice(index=index, unit_id=unit.unit_id, label=f"{unit.unit_id} hp={unit.hp}/{unit.max_hp}")
+        for index, unit in enumerate(targets, start=1)
+    ]
+
+
+def _prompt_ally_target(
+    state: BattleState,
+    actor: CombatantState,
+    read_input: InputReader,
+    write_output: OutputWriter,
+) -> str:
+    choices = living_ally_choices(state, actor)
+    if not choices:
+        raise ValueError("対象となる生存ユニットが存在しません")
+
+    write_output("ally_target_required:味方単体対象のため味方を選択してください")
+    for choice in choices:
+        write_output(f"ally_index:{choice.index}:{choice.label}")
+
+    while True:
+        raw = read_input("味方ターゲット番号> ").strip()
+        if not raw.isdigit():
+            write_output("ally_target_input_invalid:数字を入力してください")
+            continue
+        selected = int(raw)
+        matched = next((choice for choice in choices if choice.index == selected), None)
+        if matched is None:
+            write_output(f"ally_target_input_invalid:範囲外です:{selected}")
             continue
         return matched.unit_id
 
@@ -108,6 +151,11 @@ def choose_player_command(
             elif skill.target_scope == "all_enemies":
                 target_id = None
                 write_output("target_auto:全体対象のためターゲット選択は不要です")
+            elif skill.target_scope == "single_ally":
+                target_id = _prompt_ally_target(state, actor, read_input, write_output)
+            elif skill.target_scope == "all_allies":
+                target_id = None
+                write_output("ally_target_auto:味方全体対象のためターゲット選択は不要です")
             else:
                 raise ValueError(f"未対応のtarget_scopeです: {skill.target_scope}")
             return ActionCommand(actor_id=actor.unit_id, action_type="skill", skill_id=skill_id, target_id=target_id)

@@ -97,6 +97,16 @@ def _apply_effect(
     return f"effect_refreshed:{target.unit_id}:{effect_id}:turns={definition.duration_turns}"
 
 
+def _cure_effects(target: CombatantState, remove_effect_ids: tuple[str, ...]) -> list[str]:
+    if not remove_effect_ids:
+        return []
+    before = len(target.active_effects)
+    target.active_effects = [effect for effect in target.active_effects if effect.effect_id not in remove_effect_ids]
+    if len(target.active_effects) == before:
+        return [f"effect_cured:none:{target.unit_id}"]
+    return [f"effect_cured:{target.unit_id}:{effect_id}" for effect_id in remove_effect_ids]
+
+
 def _tick_end_of_turn_effects(
     actor: CombatantState,
     effect_definitions: dict[str, StatusEffectDefinition],
@@ -153,11 +163,27 @@ def apply_action(
     targets = _resolve_targets(state, attacker, target_scope, command.target_id, target_count)
     per_target: list[TargetResult] = []
     for target in targets:
+        damage = 0
         if command.action_type == "skill":
-            for effect_id in skill.apply_effect_ids:
-                logs.append(_apply_effect(target, effect_id, effect_definitions))
-        damage = calculate_damage(attacker, target, power, effect_definitions)
-        target.apply_damage(damage)
+            if skill.effect_kind == "damage":
+                for effect_id in skill.apply_effect_ids:
+                    logs.append(_apply_effect(target, effect_id, effect_definitions))
+                damage = calculate_damage(attacker, target, power, effect_definitions)
+                target.apply_damage(damage)
+            elif skill.effect_kind == "heal":
+                heal_amount = max(1, int(attacker.atk * skill.heal_power))
+                healed = target.apply_heal(heal_amount)
+                logs.append(f"heal_applied:{target.unit_id}:amount={healed}:hp={target.hp}/{target.max_hp}")
+            elif skill.effect_kind == "apply_effect":
+                for effect_id in skill.apply_effect_ids:
+                    logs.append(_apply_effect(target, effect_id, effect_definitions))
+            elif skill.effect_kind == "cure_effect":
+                logs.extend(_cure_effects(target, skill.remove_effect_ids))
+            else:
+                raise ValueError(f"未対応のeffect_kindです: {skill.effect_kind}")
+        else:
+            damage = calculate_damage(attacker, target, power, effect_definitions)
+            target.apply_damage(damage)
         per_target.append(
             TargetResult(
                 target_id=target.unit_id,
@@ -188,31 +214,36 @@ def _resolve_targets(
     target_count: int | None,
 ) -> list[CombatantState]:
     enemy_team = Team.ENEMY if attacker.team == Team.PLAYER else Team.PLAYER
-    living = [unit for unit in state.combatants.values() if unit.team == enemy_team and unit.alive]
-    living.sort(key=lambda unit: unit.unit_id)
-    if not living:
-        raise ValueError("対象となる生存ユニットが存在しません")
+    ally_team = attacker.team
 
-    if target_scope == "all_enemies":
+    if target_scope in ("all_enemies", "all_allies"):
         if target_id is not None:
-            raise ValueError("all_enemies の行動に target_id は指定できません")
+            raise ValueError(f"{target_scope} の行動に target_id は指定できません")
+        target_team = enemy_team if target_scope == "all_enemies" else ally_team
+        living = [unit for unit in state.combatants.values() if unit.team == target_team and unit.alive]
+        living.sort(key=lambda unit: unit.unit_id)
+        if not living:
+            raise ValueError("対象となる生存ユニットが存在しません")
         if target_count is None:
             return living
         if target_count <= 0:
             raise ValueError(f"target_count は1以上である必要があります: {target_count}")
         return living[:target_count]
-    if target_scope != "single_enemy":
+
+    if target_scope not in ("single_enemy", "single_ally"):
         raise ValueError(f"未対応のtarget_scopeです: {target_scope}")
     if target_id is None:
-        raise ValueError("single_enemy の行動には target_id が必要です")
+        raise ValueError(f"{target_scope} の行動には target_id が必要です")
 
     target = state.combatants.get(target_id)
     if target is None:
         raise ValueError(f"target_id が不正です: {target_id}")
-    if target.team != enemy_team:
+    expected_team = enemy_team if target_scope == "single_enemy" else ally_team
+    if target.team != expected_team:
         raise ValueError(f"対象チームが不正です: actor={attacker.team.value}, target={target.team.value}")
     if not target.alive:
-        raise ValueError(f"撃破済み対象は選択できません: {target_id}")
+        label = "戦闘不能の味方は選択できません" if target_scope == "single_ally" else "撃破済み対象は選択できません"
+        raise ValueError(f"{label}: {target_id}")
     return [target]
 
 

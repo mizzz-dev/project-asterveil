@@ -44,16 +44,26 @@ class BattleSession:
 
     def default_command_factory(self, state: BattleState, actor: CombatantState) -> ActionCommand:
         enemy_team = Team.ENEMY if actor.team == Team.PLAYER else Team.PLAYER
-        targets = [c for c in state.combatants.values() if c.team == enemy_team and c.alive]
-        targets.sort(key=lambda c: c.unit_id)
-        target = targets[0]
+        enemy_targets = [c for c in state.combatants.values() if c.team == enemy_team and c.alive]
+        enemy_targets.sort(key=lambda c: c.unit_id)
+        ally_targets = [c for c in state.combatants.values() if c.team == actor.team and c.alive]
+        ally_targets.sort(key=lambda c: c.unit_id)
+        target = enemy_targets[0]
 
         unit_skill_ids = self._unit_skill_ids(actor.unit_id)
         if unit_skill_ids:
             skill_id = unit_skill_ids[0]
             skill = self.skills[skill_id]
             if actor.sp >= skill.sp_cost:
-                target_id = None if skill.target_scope == "all_enemies" else target.unit_id
+                if skill.target_scope in ("all_enemies", "all_allies"):
+                    target_id = None
+                elif skill.target_scope == "single_ally":
+                    target_id = actor.unit_id
+                    wounded = [ally for ally in ally_targets if ally.hp < ally.max_hp]
+                    if wounded:
+                        target_id = wounded[0].unit_id
+                else:
+                    target_id = target.unit_id
                 return ActionCommand(
                     actor_id=actor.unit_id,
                     action_type="skill",

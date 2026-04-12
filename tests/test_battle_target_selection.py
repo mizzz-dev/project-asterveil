@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from game.battle.application.command_selection import choose_player_command, living_enemy_choices
+from game.battle.application.command_selection import choose_player_command, living_ally_choices, living_enemy_choices
 from game.battle.application.session import BattleSession
 from game.battle.domain.entities import Team
 from game.battle.infrastructure.master_data_repository import MasterDataRepository
@@ -71,6 +71,26 @@ class BattleTargetSelectionTests(unittest.TestCase):
         self.assertEqual(command.skill_id, "skill.striker.arc_wave")
         self.assertIsNone(command.target_id)
         self.assertIn("target_auto:全体対象のためターゲット選択は不要です", outputs)
+
+    def test_living_ally_choices_lists_self_when_solo_party(self) -> None:
+        choices = living_ally_choices(self.session.state, self.actor)
+        self.assertEqual(len(choices), 1)
+        self.assertEqual(choices[0].unit_id, self.player.id)
+
+    def test_choose_single_ally_skill_prompts_ally_target(self) -> None:
+        outputs: list[str] = []
+        command = choose_player_command(
+            state=self.session.state,
+            actor=self.actor,
+            skills=self.skills,
+            unit_skill_ids=("skill.striker.first_aid",),
+            read_input=self._reader(["2", "1", "1"]),
+            write_output=outputs.append,
+        )
+        self.assertEqual(command.action_type, "skill")
+        self.assertEqual(command.skill_id, "skill.striker.first_aid")
+        self.assertEqual(command.target_id, self.player.id)
+        self.assertIn("ally_target_required:味方単体対象のため味方を選択してください", outputs)
 
 
 if __name__ == "__main__":

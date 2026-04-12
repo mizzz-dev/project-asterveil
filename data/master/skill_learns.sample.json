@@ -19,6 +19,24 @@
         "required_level": 10,
         "learn_type": "auto",
         "description": "敵単体に小ダメージを与え、防御低下を付与する補助寄りスキル。"
+      },
+      {
+        "skill_id": "skill.striker.first_aid",
+        "required_level": 9,
+        "learn_type": "auto",
+        "description": "味方単体のHPを回復する。"
+      },
+      {
+        "skill_id": "skill.striker.cleanse",
+        "required_level": 10,
+        "learn_type": "auto",
+        "description": "味方単体の毒を治療する。"
+      },
+      {
+        "skill_id": "skill.striker.warm_prayer",
+        "required_level": 10,
+        "learn_type": "auto",
+        "description": "味方全体のHPを小回復する。"
       }
     ]
   }

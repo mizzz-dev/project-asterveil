@@ -30,25 +30,52 @@ class MasterDataRepository:
         raw = json.loads(skills_path.read_text(encoding="utf-8"))
         result: dict[str, SkillDefinition] = {}
         for item in raw:
-            damage_block = next(block for block in item["effect_blocks"] if block["type"] == "damage")
+            effect_blocks = item.get("effect_blocks", [])
+            damage_block = next((block for block in effect_blocks if block["type"] == "damage"), None)
+            heal_block = next((block for block in effect_blocks if block["type"] == "heal"), None)
+            cure_block = next((block for block in effect_blocks if block["type"] == "cure_effect"), None)
             apply_effect_ids = tuple(
                 str(block["effect_id"])
-                for block in item["effect_blocks"]
+                for block in effect_blocks
                 if block.get("type") == "apply_effect" and block.get("effect_id")
             )
+            remove_effect_ids: tuple[str, ...] = tuple()
+            if cure_block is not None:
+                remove_effect_ids = tuple(str(effect_id) for effect_id in cure_block.get("effect_ids", []))
+                if not remove_effect_ids and cure_block.get("effect_id"):
+                    remove_effect_ids = (str(cure_block["effect_id"]),)
             raw_target_count = item.get("target_count")
             target_count = int(raw_target_count) if raw_target_count is not None else None
             if target_count is not None and target_count <= 0:
                 raise ValueError(f"skills.sample.json target_count must be >= 1 skill={item['id']}")
 
+            effect_kind = str(item.get("effect_kind", "")).strip()
+            if not effect_kind:
+                if heal_block is not None:
+                    effect_kind = "heal"
+                elif remove_effect_ids:
+                    effect_kind = "cure_effect"
+                elif apply_effect_ids and damage_block is None:
+                    effect_kind = "apply_effect"
+                else:
+                    effect_kind = "damage"
+
+            if effect_kind == "damage" and damage_block is None:
+                raise ValueError(f"skills.sample.json damage skill missing damage block skill={item['id']}")
+            if effect_kind == "heal" and heal_block is None and item.get("heal_power") is None:
+                raise ValueError(f"skills.sample.json heal skill missing heal_power skill={item['id']}")
+
             result[item["id"]] = SkillDefinition(
                 id=item["id"],
                 target_type=item["target_type"],
                 target_scope=str(item.get("target_scope", self._normalize_target_scope(item["target_type"]))),
+                effect_kind=effect_kind,
                 sp_cost=item["cost"]["sp"],
-                power=float(damage_block["power"]),
+                power=float(damage_block["power"]) if damage_block is not None else 0.0,
+                heal_power=float(item.get("heal_power", heal_block.get("power") if heal_block else 0.0)),
                 target_count=target_count,
                 apply_effect_ids=apply_effect_ids,
+                remove_effect_ids=remove_effect_ids,
             )
         return result
 
