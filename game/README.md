@@ -52,6 +52,7 @@ Vertical Slice 統合ランナー実装。
 - `game/app/cli/`: 最小プレイアブル体験を確認する CLI エントリーポイント
 - `game/app/infrastructure/`: Playable Slice 向けマスターデータ読込（報酬・アイテム）
 - `game/crafting/domain|infrastructure/`: クラフトレシピ定義の読込と素材消費/生成処理
+- `game/gathering/domain|application|infrastructure/`: 採取ポイント定義の読込と採取可否/報酬解決
 - `game/shop/domain|infrastructure/`: ショップ定義/購入処理とマスターデータ読込
 
 実行例: `python -m game.app.cli.run_game_slice`
@@ -65,3 +66,5 @@ Vertical Slice 統合ランナー実装。
 宿屋/休息フローの最小ループは `docs/INN_VERTICAL_SLICE.md` を参照。
 
 クラフト/レシピ/素材消費の最小ループは `docs/CRAFTING_VERTICAL_SLICE.md` を参照。
+
+採取ポイント/素材収集の最小ループは `docs/GATHERING_VERTICAL_SLICE.md` を参照。
