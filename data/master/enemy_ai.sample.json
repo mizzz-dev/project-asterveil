@@ -3,6 +3,19 @@
     "ai_profile_id": "enemy_ai.port_wraith.poison_heal",
     "action_rules": [
       {
+        "rule_id": "rule.port_wraith.self_mend",
+        "priority": 100,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.shadow_mend",
+        "target_rule": "self",
+        "conditions": [
+          {
+            "type": "self_hp_below_ratio",
+            "value": 0.45
+          }
+        ]
+      },
+      {
         "rule_id": "rule.port_wraith.heal_low_ally",
         "priority": 90,
         "action_type": "skill",
