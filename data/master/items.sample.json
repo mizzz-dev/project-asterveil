@@ -134,5 +134,41 @@
     "stackable": false,
     "name": "ヴァンガードエンブレム",
     "description": "戦闘開始時に闘気を高める紋章。"
+  },
+  {
+    "item_id": "item.material.iron_fragment",
+    "id": "item.material.iron_fragment",
+    "category": "material",
+    "item_type": "material",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": true,
+    "name": "鉄片",
+    "description": "鍛冶に使える鉄の欠片。"
+  },
+  {
+    "item_id": "item.consumable.memory_tonic",
+    "id": "item.consumable.memory_tonic",
+    "category": "consumable",
+    "item_type": "consumable",
+    "target_scope": "single_ally",
+    "effect_type": "recover_hp",
+    "effect_value": 90,
+    "stackable": true,
+    "name": "メモリトニック",
+    "description": "味方単体のHPを90回復する濃縮回復薬。"
+  },
+  {
+    "item_id": "equip.weapon.memory_edge",
+    "id": "equip.weapon.memory_edge",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "メモリーエッジ",
+    "description": "記憶片から鍛えた鋭い片手剣。"
   }
 ]

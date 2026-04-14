@@ -63,6 +63,24 @@ def _run_shop_flow(app: PlayableSliceApplication) -> list[str]:
     return app.buy_item(selected_item)
 
 
+def _run_crafting_flow(app: PlayableSliceApplication) -> list[str]:
+    recipe_lines = app.crafting_recipe_lines()
+    for line in recipe_lines:
+        print(f"- {line}")
+
+    options: list[tuple[str, str]] = [("cancel", "クラフトしない")]
+    for line in recipe_lines:
+        if not line.startswith("craft_recipe:"):
+            continue
+        _, recipe_id, recipe_name, category_part, can_craft_part, ingredients_part, outputs_part = line.split(":", 6)
+        options.append((recipe_id, f"{recipe_name} ({recipe_id}) {category_part} {can_craft_part} {ingredients_part} {outputs_part}"))
+
+    selected = _choose(options)
+    if selected == "cancel":
+        return ["craft_cancelled"]
+    return app.craft_recipe(selected)
+
+
 def _run_inn_flow(app: PlayableSliceApplication) -> list[str]:
     info = app.inn_info_lines()
     for line in info:
@@ -193,6 +211,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_equipment_flow(app)
             elif selected == "shop":
                 logs = _run_shop_flow(app)
+            elif selected == "craft":
+                logs = _run_crafting_flow(app)
             elif selected == "inn":
                 logs = _run_inn_flow(app)
             elif selected == "quest_board":

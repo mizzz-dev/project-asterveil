@@ -26,6 +26,7 @@ class ShopSliceTests(unittest.TestCase):
                 "equip.armor.antivenom_charm",
                 "equip.weapon.prayer_staff",
                 "equip.armor.vanguard_emblem",
+                "item.material.iron_fragment",
             },
         )
 

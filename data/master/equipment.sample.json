@@ -102,5 +102,18 @@
         "description": "戦闘開始時に攻撃上昇を付与する。"
       }
     ]
+  },
+  {
+    "equipment_id": "equip.weapon.memory_edge",
+    "name": "メモリーエッジ",
+    "slot_type": "weapon",
+    "stat_modifiers": {
+      "atk": 10,
+      "spd": 1
+    },
+    "description": "記憶片を核に鍛えた片手剣。",
+    "price": 320,
+    "stackable": false,
+    "passive_effects": []
   }
 ]
