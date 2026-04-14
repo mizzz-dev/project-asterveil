@@ -97,5 +97,44 @@
       "completion_flag": "flag.ch01.training_cleared"
     },
     "target_location_id": "location.field.tidal_flats"
+  },
+  {
+    "quest_id": "quest.ch01.tide_serpent_subjugation",
+    "id": "quest.ch01.tide_serpent_subjugation",
+    "title": "潮門の海蛇討伐",
+    "description": "港路を荒らす元凶、潮門遺跡の主を討伐する。",
+    "category": "sub",
+    "repeatable": false,
+    "reporting_npc_id": "npc.ch01.harbor_guard",
+    "availability": {
+      "required_quest_ids": [
+        "quest.ch01.harbor_cleanup"
+      ],
+      "required_flags": [
+        "flag.ch01.harbor_secured"
+      ],
+      "min_level": 8
+    },
+    "encounter_id": "encounter.ch01.tide_serpent_boss",
+    "objectives": [
+      {
+        "id": "obj.ch01.tide_serpent_kill",
+        "type": "kill_enemy",
+        "target_enemy_id": "enemy.ch01.tide_serpent",
+        "required_count": 1
+      }
+    ],
+    "reward": {
+      "exp": 220,
+      "gold": 140,
+      "items": [
+        {
+          "item_id": "item.material.memory_shard",
+          "amount": 2
+        }
+      ],
+      "completion_flag": "flag.ch01.tide_serpent_subjugated"
+    },
+    "target_location_id": "location.dungeon.tidegate_ruins"
   }
 ]

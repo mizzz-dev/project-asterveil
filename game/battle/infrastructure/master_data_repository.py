@@ -4,6 +4,12 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from game.battle.application.boss_phase import (
+    BossEncounterDefinition,
+    BossPhaseDefinition,
+    BossPhaseEvent,
+    parse_boss_phase_condition,
+)
 from game.battle.application.enemy_ai import EnemyAiProfile, EnemyAiRule
 from game.battle.domain.entities import SkillDefinition, Stats, StatusEffectDefinition, Team, UnitDefinition
 
@@ -113,6 +119,49 @@ class MasterDataRepository:
                 description=str(item.get("description", "")),
             )
         return encounters
+
+    def load_boss_encounters(self) -> dict[str, BossEncounterDefinition]:
+        path = self._root / "boss_encounters.sample.json"
+        if not path.exists():
+            return {}
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        result: dict[str, BossEncounterDefinition] = {}
+        for item in raw:
+            encounter_id = str(item.get("encounter_id") or "")
+            boss_enemy_id = str(item.get("boss_enemy_id") or "")
+            if not encounter_id or not boss_enemy_id:
+                raise ValueError("boss_encounters.sample.json missing encounter_id or boss_enemy_id")
+            phases: list[BossPhaseDefinition] = []
+            for phase in item.get("phases", []):
+                phase_id = str(phase.get("phase_id") or "")
+                if not phase_id:
+                    raise ValueError(f"boss_encounters.sample.json missing phase_id encounter={encounter_id}")
+                events = tuple(
+                    BossPhaseEvent(
+                        event_type=str(event.get("event_type", "")),
+                        message=str(event["message"]) if event.get("message") else None,
+                        effect_id=str(event["effect_id"]) if event.get("effect_id") else None,
+                        flag_id=str(event["flag_id"]) if event.get("flag_id") else None,
+                    )
+                    for event in phase.get("on_enter_events", [])
+                )
+                phases.append(
+                    BossPhaseDefinition(
+                        phase_id=phase_id,
+                        display_name=str(phase.get("display_name") or phase_id),
+                        ai_profile_id=str(phase["ai_profile_id"]) if phase.get("ai_profile_id") else None,
+                        enter_condition=parse_boss_phase_condition(phase.get("enter_condition")),
+                        on_enter_events=events,
+                    )
+                )
+            if not phases:
+                raise ValueError(f"boss_encounters.sample.json requires phases encounter={encounter_id}")
+            result[encounter_id] = BossEncounterDefinition(
+                encounter_id=encounter_id,
+                boss_enemy_id=boss_enemy_id,
+                phases=tuple(phases),
+            )
+        return result
 
     def load_enemy_ai_profiles(self) -> dict[str, EnemyAiProfile]:
         ai_path = self._root / "enemy_ai.sample.json"

@@ -216,5 +216,24 @@
     "weight": 10,
     "break_power": 8,
     "precast_warning": false
+  },
+  {
+    "id": "skill.enemy.tide_roar",
+    "target_type": "all",
+    "target_scope": "all_enemies",
+    "cost": {
+      "sp": 18,
+      "cooldown": 0
+    },
+    "effect_blocks": [
+      {
+        "type": "damage",
+        "element": "water",
+        "power": 1.05
+      }
+    ],
+    "weight": 20,
+    "break_power": 14,
+    "precast_warning": false
   }
 ]

@@ -36,5 +36,16 @@
         "slot": "mid"
       }
     ]
+  },
+  {
+    "encounter_id": "encounter.ch01.tide_serpent_boss",
+    "description": "古い潮門を守る海蛇の主とのボス戦。",
+    "enemies": [
+      {
+        "enemy_id": "enemy.ch01.tide_serpent",
+        "count": 1,
+        "slot": "front"
+      }
+    ]
   }
 ]

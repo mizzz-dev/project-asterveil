@@ -47,5 +47,30 @@
     "skill_rotation_id": "rotation.enemy.brine_slime.basic",
     "drop_table_id": "drop.enemy.brine_slime",
     "ai_profile_id": "enemy_ai.brine_slime.debuff"
+  },
+  {
+    "id": "enemy.ch01.tide_serpent",
+    "level": 10,
+    "stats": {
+      "hp": 420,
+      "atk": 26,
+      "def": 18,
+      "spd": 14
+    },
+    "skill_ids": [
+      "skill.enemy.venom_bite",
+      "skill.enemy.tide_roar"
+    ],
+    "weakness": {
+      "elements": [
+        "thunder"
+      ],
+      "weapon_types": [
+        "pierce"
+      ]
+    },
+    "skill_rotation_id": "rotation.enemy.tide_serpent.boss",
+    "drop_table_id": "drop.enemy.tide_serpent",
+    "ai_profile_id": "enemy_ai.tide_serpent.phase1"
   }
 ]

@@ -15,8 +15,10 @@ def run_sample_battle() -> int:
     effects = repo.load_status_effects()
     enemy_ai_profiles = repo.load_enemy_ai_profiles()
     enemy_ai_bindings = repo.load_enemy_ai_bindings()
+    boss_encounters = repo.load_boss_encounters()
     player = repo.load_character("char.main.rion")
-    enemies, runtime_enemy_map = repo.build_enemy_party("encounter.ch01.port_wraith")
+    encounter_id = "encounter.ch01.port_wraith"
+    enemies, runtime_enemy_map = repo.build_enemy_party(encounter_id)
 
     session = BattleSession.create(
         [player],
@@ -26,6 +28,8 @@ def run_sample_battle() -> int:
         enemy_ai_profiles=enemy_ai_profiles,
         enemy_ai_by_enemy_id=enemy_ai_bindings,
         runtime_enemy_map=runtime_enemy_map,
+        encounter_id=encounter_id,
+        boss_encounters=boss_encounters,
     )
     session.bind_unit_skills({player.id: player.skill_ids, **{enemy.id: enemy.skill_ids for enemy in enemies}})
 

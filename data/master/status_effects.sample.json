@@ -22,5 +22,17 @@
     "clear_on_rest": true,
     "removable_by_item": true,
     "description": "防御力が25%低下する。"
+  },
+  {
+    "effect_id": "effect.buff.attack_up",
+    "name": "攻撃上昇",
+    "effect_type": "buff",
+    "target_stat": "atk",
+    "magnitude": 0.35,
+    "duration_turns": 3,
+    "application_rule": "while_active",
+    "clear_on_rest": true,
+    "removable_by_item": false,
+    "description": "攻撃力が35%上昇する。"
   }
 ]

@@ -1,0 +1,38 @@
+[
+  {
+    "encounter_id": "encounter.ch01.tide_serpent_boss",
+    "boss_enemy_id": "enemy.ch01.tide_serpent",
+    "phases": [
+      {
+        "phase_id": "phase.tide_serpent.opening",
+        "display_name": "海蛇の主・静観",
+        "ai_profile_id": "enemy_ai.tide_serpent.phase1",
+        "on_enter_events": [
+          {
+            "event_type": "show_message",
+            "message": "潮門の海蛇が低く唸り、毒牙を構えた。"
+          }
+        ]
+      },
+      {
+        "phase_id": "phase.tide_serpent.enraged_tide",
+        "display_name": "海蛇の主・激昂潮流",
+        "enter_condition": {
+          "type": "hp_ratio_below",
+          "value": 0.5
+        },
+        "ai_profile_id": "enemy_ai.tide_serpent.phase2",
+        "on_enter_events": [
+          {
+            "event_type": "show_message",
+            "message": "「潮よ、すべてを呑め！」海蛇の主が咆哮した。"
+          },
+          {
+            "event_type": "apply_effect_to_self",
+            "effect_id": "effect.buff.attack_up"
+          }
+        ]
+      }
+    ]
+  }
+]
