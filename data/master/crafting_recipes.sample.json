@@ -1,0 +1,46 @@
+[
+  {
+    "recipe_id": "recipe.craft.memory_tonic",
+    "name": "メモリトニック調合",
+    "category": "consumable",
+    "ingredients": [
+      {
+        "item_id": "item.material.memory_shard",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "item_id": "item.consumable.memory_tonic",
+        "quantity": 1
+      }
+    ],
+    "description": "記憶片を薬草と調合し、高い回復効果を持つ薬を作る。"
+  },
+  {
+    "recipe_id": "recipe.craft.memory_edge",
+    "name": "メモリーエッジ鍛造",
+    "category": "equipment",
+    "ingredients": [
+      {
+        "item_id": "item.material.memory_shard",
+        "quantity": 2
+      },
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "equipment_id": "equip.weapon.memory_edge",
+        "quantity": 1
+      }
+    ],
+    "description": "記憶片と鉄片を鍛え、攻撃性能の高い剣を作る。"
+  }
+]

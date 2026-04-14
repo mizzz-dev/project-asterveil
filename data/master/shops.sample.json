@@ -51,6 +51,12 @@
         "price": 220,
         "stock_type": "unlimited",
         "description": "開幕に闘気を纏う紋章"
+      },
+      {
+        "item_id": "item.material.iron_fragment",
+        "price": 30,
+        "stock_type": "unlimited",
+        "description": "クラフト素材に使える鉄片"
       }
     ]
   }

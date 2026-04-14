@@ -13,6 +13,8 @@ from game.app.application.dialogue_event_service import DialogueService, Locatio
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
+from game.crafting.domain.services import CraftingService
+from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
 from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
@@ -49,6 +51,7 @@ class PlayableSliceApplication:
         self._quest_repo = QuestMasterDataRepository(master_root)
         self._app_master_repo = AppMasterDataRepository(master_root)
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
+        self._crafting_repo = CraftingMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
@@ -76,6 +79,11 @@ class PlayableSliceApplication:
         self._item_definitions = self._app_master_repo.load_items()
         self._status_effect_definitions = self._app_master_repo.load_status_effects()
         self._equipment_definitions = self._app_master_repo.load_equipment()
+        self._crafting_service = CraftingService()
+        self._crafting_recipes = self._crafting_repo.load_recipes(
+            valid_item_ids=set(self._item_definitions),
+            valid_equipment_ids=set(self._equipment_definitions),
+        )
         self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
@@ -154,6 +162,7 @@ class PlayableSliceApplication:
             ActionItem("use_item", "アイテムを使う"),
             ActionItem("equip", "装備変更"),
             ActionItem("shop", "ショップに行く"),
+            ActionItem("craft", "クラフトする"),
             ActionItem("inn", "宿屋に泊まる"),
             ActionItem("quest_board", "クエストボードを見る"),
             ActionItem("move", "移動する"),
@@ -199,6 +208,8 @@ class PlayableSliceApplication:
             return self.equipment_overview_lines()
         if action_key == "shop":
             return self.shop_catalog_lines()
+        if action_key == "craft":
+            return self.crafting_recipe_lines()
         if action_key == "inn":
             return self.inn_info_lines()
         if action_key == "hunt":
@@ -451,6 +462,34 @@ class PlayableSliceApplication:
             quantity=quantity,
         )
         return [result.message]
+
+    def crafting_recipe_lines(self) -> list[str]:
+        lines = ["crafting:recipes"]
+        inventory_items = self.inventory_state.get("items", {})
+        for recipe_id, recipe in sorted(self._crafting_recipes.items()):
+            resolution = self._crafting_service.resolve(recipe=recipe, inventory_items=inventory_items)
+            outputs = ",".join(f"{item_id}x{amount}" for item_id, amount in sorted(resolution.aggregated_outputs.items()))
+            ingredients = ",".join(
+                f"{req.item_id}:{req.owned}/{req.required}" for req in resolution.required_materials
+            )
+            lines.append(
+                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:can_craft={resolution.can_craft}:"
+                f"ingredients={ingredients}:outputs={outputs}"
+            )
+        return lines
+
+    def craft_recipe(self, recipe_id: str, count: int = 1) -> list[str]:
+        recipe = self._crafting_recipes.get(recipe_id)
+        if recipe is None:
+            return [f"craft_failed:recipe_not_found:{recipe_id}"]
+        result = self._crafting_service.craft(recipe=recipe, inventory_state=self.inventory_state, count=count)
+        lines = [result.message]
+        if not result.success:
+            return lines
+        if result.crafted:
+            for item_id, amount in sorted(result.crafted.items()):
+                lines.append(f"crafted_item:{item_id}:x{amount}")
+        return lines
 
     def inn_info_lines(self, inn_id: str = BASE_INN_ID) -> list[str]:
         inn = self._inn_service.get_inn(inn_id)
