@@ -75,11 +75,6 @@
       "completed_location_event_ids": [
         "event.location.tidal_flats.first_entry"
       ]
-    },
-    "gathering_state": {
-      "gathered_node_ids": [
-        "gather.herb.astel_square_flowerbed"
-      ]
     }
   }
 }
