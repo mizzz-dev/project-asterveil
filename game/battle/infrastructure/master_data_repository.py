@@ -11,6 +11,7 @@ from game.battle.application.boss_phase import (
     parse_boss_phase_condition,
 )
 from game.battle.application.enemy_ai import EnemyAiProfile, EnemyAiRule
+from game.battle.application.equipment_passive_service import PassiveEffect
 from game.battle.domain.entities import SkillDefinition, Stats, StatusEffectDefinition, Team, UnitDefinition
 
 
@@ -210,6 +211,32 @@ class MasterDataRepository:
                 units.append(instance)
                 runtime_to_enemy_id[runtime_id] = entry.enemy_id
         return units, runtime_to_enemy_id
+
+    def load_equipment_passives(self) -> dict[str, tuple[PassiveEffect, ...]]:
+        equipment_path = self._root / "equipment.sample.json"
+        raw = json.loads(equipment_path.read_text(encoding="utf-8"))
+        result: dict[str, tuple[PassiveEffect, ...]] = {}
+        for item in raw:
+            equipment_id = str(item.get("equipment_id") or item.get("id") or "")
+            if not equipment_id:
+                raise ValueError("equipment.sample.json missing field=equipment_id")
+            parsed: list[PassiveEffect] = []
+            for passive in item.get("passive_effects", []):
+                passive_id = str(passive.get("passive_id") or "")
+                passive_type = str(passive.get("passive_type") or "")
+                if not passive_id or not passive_type:
+                    raise ValueError(f"equipment passive missing passive_id/passive_type equipment_id={equipment_id}")
+                parsed.append(
+                    PassiveEffect(
+                        passive_id=passive_id,
+                        passive_type=passive_type,
+                        target=str(passive.get("target", "self")),
+                        parameters=dict(passive.get("parameters", {})),
+                        description=str(passive.get("description", "")),
+                    )
+                )
+            result[equipment_id] = tuple(parsed)
+        return result
 
     def load_status_effects(self) -> dict[str, StatusEffectDefinition]:
         effects_path = self._root / "status_effects.sample.json"

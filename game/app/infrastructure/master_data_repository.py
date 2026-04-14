@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from game.app.application.equipment_service import EquipmentDefinition
+from game.app.application.equipment_service import EquipmentDefinition, EquipmentPassiveDefinition
 from game.app.application.inn_service import InnDefinition
 from game.app.application.reward_services import BattleReward, RewardBundle, RewardItem
 
@@ -50,6 +50,19 @@ class AppMasterDataRepository:
             if not slot_type:
                 raise ValueError(f"equipment.sample.json missing field=slot_type equipment_id={equipment_id}")
             stat_modifiers = dict(entry.get("stat_modifiers") or {})
+            passive_effects = tuple(
+                EquipmentPassiveDefinition(
+                    passive_id=str(passive.get("passive_id") or ""),
+                    passive_type=str(passive.get("passive_type") or ""),
+                    target=str(passive.get("target", "self")),
+                    parameters=dict(passive.get("parameters", {})),
+                    description=str(passive.get("description", "")),
+                )
+                for passive in entry.get("passive_effects", [])
+            )
+            if any(not passive.passive_id or not passive.passive_type for passive in passive_effects):
+                raise ValueError(f"equipment.sample.json passive requires passive_id/passive_type equipment_id={equipment_id}")
+
             equipment[equipment_id] = EquipmentDefinition(
                 equipment_id=equipment_id,
                 name=str(entry.get("name") or equipment_id),
@@ -58,6 +71,7 @@ class AppMasterDataRepository:
                 description=str(entry.get("description", "")),
                 price=int(entry.get("price", 0)),
                 stackable=bool(entry.get("stackable", False)),
+                passive_effects=passive_effects,
             )
         return equipment
 

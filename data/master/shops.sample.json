@@ -33,6 +33,24 @@
         "price": 180,
         "stock_type": "unlimited",
         "description": "軽量な革鎧"
+      },
+      {
+        "item_id": "equip.armor.antivenom_charm",
+        "price": 160,
+        "stock_type": "unlimited",
+        "description": "毒を防ぐ護符"
+      },
+      {
+        "item_id": "equip.weapon.prayer_staff",
+        "price": 260,
+        "stock_type": "unlimited",
+        "description": "回復術を強める杖"
+      },
+      {
+        "item_id": "equip.armor.vanguard_emblem",
+        "price": 220,
+        "stock_type": "unlimited",
+        "description": "開幕に闘気を纏う紋章"
       }
     ]
   }

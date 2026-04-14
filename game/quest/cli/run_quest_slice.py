@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from game.battle.application.equipment_passive_service import EquipmentPassiveService
 from game.battle.application.session import BattleSession
 from game.battle.domain.entities import Team
 from game.battle.infrastructure.master_data_repository import MasterDataRepository
@@ -20,6 +21,7 @@ def build_battle_executor(root: Path):
     enemy_ai_profiles = battle_repo.load_enemy_ai_profiles()
     enemy_ai_bindings = battle_repo.load_enemy_ai_bindings()
     boss_encounters = battle_repo.load_boss_encounters()
+    equipment_passives = EquipmentPassiveService(battle_repo.load_equipment_passives())
     base_player = battle_repo.load_character("char.main.rion")
 
     def execute(encounter_id: str, party_members: list[Any] | None = None) -> BattleResult:
@@ -38,6 +40,7 @@ def build_battle_executor(root: Path):
                 skill_ids=tuple(getattr(member, "unlocked_skill_ids", base_player.skill_ids)),
             )
         enemies, runtime_to_enemy_id = battle_repo.build_enemy_party(encounter_id)
+        member_equipped = dict(getattr(member, "equipped", {})) if party_members else {}
         session = BattleSession.create(
             [player],
             enemies,
@@ -48,6 +51,8 @@ def build_battle_executor(root: Path):
             runtime_enemy_map=runtime_to_enemy_id,
             encounter_id=encounter_id,
             boss_encounters=boss_encounters,
+            equipment_passive_service=equipment_passives,
+            unit_equipment={player.id: member_equipped},
         )
         session.bind_unit_skills(
             {

@@ -494,11 +494,15 @@ class PlayableSliceApplication:
             )
             available = max(0, owned - equipped_count)
             bonus = self._equipment_service.compute_bonuses({slot_type: equipment_id})
+            passive_summary = ", ".join(
+                f"{passive.passive_type}:{passive.description}" for passive in definition.passive_effects
+            ) or "none"
             options.append(
                 (
                     equipment_id,
                     f"{definition.name} ({equipment_id}) owned={owned} available={available} "
-                    f"atk+{bonus['atk']} def+{bonus['defense']} hp+{bonus['hp']} spd+{bonus['spd']}",
+                    f"atk+{bonus['atk']} def+{bonus['defense']} hp+{bonus['hp']} spd+{bonus['spd']} "
+                    f"passives={passive_summary}",
                 )
             )
         return options
@@ -525,7 +529,8 @@ class PlayableSliceApplication:
                 f"hp={final['current_hp']}/{final['max_hp']}:sp={final['current_sp']}/{final['max_sp']}:"
                 f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}:"
                 f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}:"
-                f"skills={member.unlocked_skill_ids}"
+                f"skills={member.unlocked_skill_ids}:"
+                f"passives={self._equipment_service.passive_summary(member.equipped)}"
             )
         return lines
 
@@ -590,11 +595,16 @@ class PlayableSliceApplication:
                     active_effects=[effect for effect in member.active_effects],
                 )
             )
+        pre_battle_logs = [
+            f"battle_passives:{member.character_id}:{self._equipment_service.passive_summary(member.equipped)}"
+            for member in battle_party
+            if self._equipment_service.passive_summary(member.equipped)
+        ]
         try:
             battle_result = self._battle_executor(encounter_id, battle_party)
         except TypeError:
             battle_result = self._battle_executor(encounter_id)
-        logs = [f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
+        logs = [*pre_battle_logs, f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
         for member in battle_party:
             actual = next((m for m in self.party_members if m.character_id == member.character_id), None)
             if actual is None:

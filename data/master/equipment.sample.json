@@ -3,27 +3,104 @@
     "equipment_id": "equip.weapon.bronze_blade",
     "name": "ブロンズブレード",
     "slot_type": "weapon",
-    "stat_modifiers": { "atk": 4 },
+    "stat_modifiers": {
+      "atk": 4
+    },
     "description": "駆け出し向けの片手剣。",
     "price": 120,
-    "stackable": false
+    "stackable": false,
+    "passive_effects": []
   },
   {
     "equipment_id": "equip.weapon.iron_blade",
     "name": "アイアンブレード",
     "slot_type": "weapon",
-    "stat_modifiers": { "atk": 8, "spd": -1 },
+    "stat_modifiers": {
+      "atk": 8,
+      "spd": -1
+    },
     "description": "重みのある鍛造剣。",
     "price": 240,
-    "stackable": false
+    "stackable": false,
+    "passive_effects": []
   },
   {
     "equipment_id": "equip.armor.leather_jacket",
     "name": "レザージャケット",
     "slot_type": "armor",
-    "stat_modifiers": { "def": 3, "hp": 12 },
+    "stat_modifiers": {
+      "def": 3,
+      "hp": 12
+    },
     "description": "軽量で動きやすい革鎧。",
     "price": 180,
-    "stackable": false
+    "stackable": false,
+    "passive_effects": []
+  },
+  {
+    "equipment_id": "equip.armor.antivenom_charm",
+    "name": "アンチヴェノムチャーム",
+    "slot_type": "armor",
+    "stat_modifiers": {
+      "def": 1
+    },
+    "description": "毒を弾く護符。毒耐性を得る。",
+    "price": 160,
+    "stackable": false,
+    "passive_effects": [
+      {
+        "passive_id": "passive.equip.antivenom_charm.poison_guard",
+        "passive_type": "status_resistance",
+        "target": "self",
+        "parameters": {
+          "effect_id": "effect.ailment.poison"
+        },
+        "description": "毒状態を無効化する。"
+      }
+    ]
+  },
+  {
+    "equipment_id": "equip.weapon.prayer_staff",
+    "name": "プレイヤースタッフ",
+    "slot_type": "weapon",
+    "stat_modifiers": {
+      "atk": 2
+    },
+    "description": "祈りを込めた杖。回復スキルの効果量が上がる。",
+    "price": 260,
+    "stackable": false,
+    "passive_effects": [
+      {
+        "passive_id": "passive.equip.prayer_staff.heal_boost",
+        "passive_type": "heal_bonus",
+        "target": "self",
+        "parameters": {
+          "rate": 0.5
+        },
+        "description": "回復スキルの回復量を50%増加する。"
+      }
+    ]
+  },
+  {
+    "equipment_id": "equip.armor.vanguard_emblem",
+    "name": "ヴァンガードエンブレム",
+    "slot_type": "armor",
+    "stat_modifiers": {
+      "def": 2
+    },
+    "description": "前衛の紋章。戦闘開始時に攻撃上昇を得る。",
+    "price": 220,
+    "stackable": false,
+    "passive_effects": [
+      {
+        "passive_id": "passive.equip.vanguard_emblem.opening_attack_up",
+        "passive_type": "battle_start_effect",
+        "target": "self",
+        "parameters": {
+          "effect_id": "effect.buff.attack_up"
+        },
+        "description": "戦闘開始時に攻撃上昇を付与する。"
+      }
+    ]
   }
 ]
