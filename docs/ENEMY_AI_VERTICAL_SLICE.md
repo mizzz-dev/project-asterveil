@@ -10,6 +10,7 @@
 - `target_rule` により単体対象を自動選択
 - 条件不一致時は通常攻撃へフォールバック
 - 戦闘ログに `enemy_ai:selected_rule=...` を出力
+- `self_hp_below_ratio` + `self` の組み合わせで自己回復行動を選択
 
 ## 対応した最小要件
 
@@ -33,7 +34,7 @@
 - **Status Effect**:
   - `enemy_has_no_effect` により毒・防御低下の重複付与を抑制。
 - **Support Skill**:
-  - `skill.enemy.shadow_mend` で低HP味方への回復を実行。
+  - `skill.enemy.shadow_mend` で低HP味方への回復と自己回復を実行。
 - **Playable Slice / Quest / Battle**:
   - `build_battle_executor` 経由の通常バトルでも敵AIを使用。
 - **Save / Load**:

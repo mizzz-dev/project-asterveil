@@ -6,7 +6,7 @@ from pathlib import Path
 
 from game.battle.application.enemy_ai import EnemyAiService
 from game.battle.application.session import BattleSession
-from game.battle.domain.entities import ActiveEffectState, Team
+from game.battle.domain.entities import ActiveEffectState, Stats, Team, UnitDefinition
 from game.battle.domain.services import execute_turn
 from game.battle.infrastructure.master_data_repository import MasterDataRepository
 
@@ -90,6 +90,57 @@ class EnemyAiSliceTests(unittest.TestCase):
         second = session.default_command_factory(session.state, slime)
         self.assertEqual(second.action_type, "attack")
         self.assertTrue(any(effect.effect_id == "effect.debuff.defense_down" for effect in player.active_effects))
+
+    def test_enemy_uses_self_target_heal_when_self_hp_is_low(self) -> None:
+        session = self._session("encounter.ch01.port_wraith_single")
+        enemy = next(unit for unit in session.state.combatants.values() if unit.team == Team.ENEMY)
+        enemy.hp = max(1, int(enemy.max_hp * 0.3))
+
+        command = session.default_command_factory(session.state, enemy)
+        self.assertEqual(command.action_type, "skill")
+        self.assertEqual(command.skill_id, "skill.enemy.shadow_mend")
+        self.assertEqual(command.target_id, enemy.unit_id)
+        self.assertTrue(any("selected_rule=rule.port_wraith.self_mend" in log for log in command.logs))
+
+    def test_enemy_targets_lowest_hp_player_for_lowest_hp_enemy_rule(self) -> None:
+        enemy = self.repo.load_enemy("enemy.ch01.brine_slime")
+        player_front = UnitDefinition(
+            id="char.test.front",
+            team=Team.PLAYER,
+            stats=Stats(hp=180, atk=20, defense=14, spd=18),
+            skill_ids=tuple(),
+        )
+        player_back = UnitDefinition(
+            id="char.test.back",
+            team=Team.PLAYER,
+            stats=Stats(hp=120, atk=19, defense=12, spd=17),
+            skill_ids=tuple(),
+        )
+        session = BattleSession.create(
+            [player_front, player_back],
+            [enemy],
+            self.skills,
+            self.effects,
+            enemy_ai_profiles=self.ai_profiles,
+            enemy_ai_by_enemy_id=self.ai_bindings,
+            runtime_enemy_map={enemy.id: enemy.id},
+            enemy_ai_service=EnemyAiService(random.Random(0)),
+        )
+        session.bind_unit_skills(
+            {
+                player_front.id: tuple(),
+                player_back.id: tuple(),
+                enemy.id: enemy.skill_ids,
+            }
+        )
+        session.state.combatants[player_front.id].hp = max(1, int(session.state.combatants[player_front.id].max_hp * 0.8))
+        session.state.combatants[player_back.id].hp = max(1, int(session.state.combatants[player_back.id].max_hp * 0.2))
+        enemy_actor = session.state.combatants[enemy.id]
+
+        command = session.default_command_factory(session.state, enemy_actor)
+        self.assertEqual(command.action_type, "skill")
+        self.assertEqual(command.skill_id, "skill.enemy.armor_crush")
+        self.assertEqual(command.target_id, player_back.id)
 
     def test_enemy_ai_log_is_recorded_in_turn_result(self) -> None:
         session = self._session("encounter.ch01.port_wraith_single")
