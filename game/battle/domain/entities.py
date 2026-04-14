@@ -100,6 +100,7 @@ class ActionCommand:
     action_type: str  # attack | skill
     target_id: str | None = None
     skill_id: str | None = None
+    logs: tuple[str, ...] = tuple()
 
 
 @dataclass(frozen=True)

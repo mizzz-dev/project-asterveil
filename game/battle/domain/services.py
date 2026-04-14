@@ -263,6 +263,7 @@ def execute_turn(
 
     command = command_factory(state, actor)
     result = apply_action(state, command, skills, effect_definitions)
-    logs = list(result.logs)
+    logs = list(command.logs)
+    logs.extend(result.logs)
     logs.extend(_tick_end_of_turn_effects(actor, effect_definitions or {}))
     return TurnResult(acted=True, actor_id=actor.unit_id, summary=result, winner=state.winner(), logs=tuple(logs))
