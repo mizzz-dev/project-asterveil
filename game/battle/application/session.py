@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from game.battle.application.boss_phase import BossEncounterDefinition, BossPhaseService, BossPhaseState
+from game.battle.application.equipment_passive_service import EquipmentPassiveService, UnitPassiveContext
 from game.battle.application.enemy_ai import EnemyAiProfile, EnemyAiService
 from game.battle.domain.entities import (
     ActionCommand,
@@ -28,6 +29,9 @@ class BattleSession:
     boss_encounters: dict[str, BossEncounterDefinition] = field(default_factory=dict)
     boss_phase_service: BossPhaseService = field(default_factory=BossPhaseService)
     boss_phase_states: dict[str, BossPhaseState] = field(default_factory=dict)
+    equipment_passive_service: EquipmentPassiveService | None = None
+    unit_passives: dict[str, UnitPassiveContext] = field(default_factory=dict)
+    opening_logs: list[str] = field(default_factory=list)
 
     @classmethod
     def from_definitions(
@@ -65,6 +69,8 @@ class BattleSession:
         enemy_ai_service: EnemyAiService | None = None,
         encounter_id: str | None = None,
         boss_encounters: dict[str, BossEncounterDefinition] | None = None,
+        equipment_passive_service: EquipmentPassiveService | None = None,
+        unit_equipment: dict[str, dict[str, str]] | None = None,
     ) -> "BattleSession":
         session = cls.from_definitions(player_units, enemy_units, skills, effect_definitions)
         session.enemy_ai_service = enemy_ai_service or EnemyAiService()
@@ -73,6 +79,18 @@ class BattleSession:
         session.runtime_enemy_map = runtime_enemy_map or {}
         session.encounter_id = encounter_id
         session.boss_encounters = boss_encounters or {}
+        session.equipment_passive_service = equipment_passive_service
+        if equipment_passive_service is not None:
+            for combatant_id in session.state.combatants:
+                equipped = (unit_equipment or {}).get(combatant_id, {})
+                session.unit_passives[combatant_id] = equipment_passive_service.resolve_context(equipped)
+                session.opening_logs.extend(
+                    equipment_passive_service.apply_battle_start_effects(
+                        session.state.combatants[combatant_id],
+                        session.unit_passives[combatant_id],
+                        session.effect_definitions,
+                    )
+                )
         return session
 
     def default_command_factory(self, state: BattleState, actor: CombatantState) -> ActionCommand:
@@ -157,6 +175,8 @@ class BattleSession:
                 command_factory=self.default_command_factory,
                 skills=self.skills,
                 effect_definitions=self.effect_definitions,
+                equipment_passive_service=self.equipment_passive_service,
+                unit_passives=self.unit_passives,
             )
             if turn.acted:
                 results.append(turn)

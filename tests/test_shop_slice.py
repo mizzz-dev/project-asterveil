@@ -23,6 +23,9 @@ class ShopSliceTests(unittest.TestCase):
                 "item.consumable.antidote_leaf",
                 "equip.weapon.iron_blade",
                 "equip.armor.leather_jacket",
+                "equip.armor.antivenom_charm",
+                "equip.weapon.prayer_staff",
+                "equip.armor.vanguard_emblem",
             },
         )
 

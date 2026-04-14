@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from game.battle.application.equipment_passive_service import EquipmentPassiveService, UnitPassiveContext
+
 from .entities import (
     ActiveEffectState,
     ActionCommand,
@@ -84,7 +86,14 @@ def _apply_effect(
     target: CombatantState,
     effect_id: str,
     effect_definitions: dict[str, StatusEffectDefinition],
+    unit_passives: dict[str, UnitPassiveContext] | None = None,
 ) -> str:
+    context = (unit_passives or {}).get(target.unit_id)
+    if context is not None:
+        passive_id = context.resisted_effects.get(effect_id)
+        if passive_id is not None:
+            return f"status_resisted:{target.unit_id}:{effect_id}:passive={passive_id}"
+
     definition = effect_definitions.get(effect_id)
     if definition is None:
         return f"effect_skipped:undefined:{effect_id}"
@@ -136,10 +145,13 @@ def apply_action(
     command: ActionCommand,
     skills: dict[str, SkillDefinition],
     effect_definitions: dict[str, StatusEffectDefinition] | None = None,
+    equipment_passive_service: EquipmentPassiveService | None = None,
+    unit_passives: dict[str, UnitPassiveContext] | None = None,
 ) -> ActionResult:
     effect_definitions = effect_definitions or {}
     attacker = state.combatants[command.actor_id]
     logs: list[str] = []
+    attacker_passives = (unit_passives or {}).get(attacker.unit_id)
 
     if command.action_type == "attack":
         power = BASE_ATTACK_POWER
@@ -150,9 +162,14 @@ def apply_action(
         if command.skill_id is None:
             raise ValueError("skill action requires skill_id")
         skill = skills[command.skill_id]
-        if attacker.sp < skill.sp_cost:
+        sp_cost = skill.sp_cost
+        if equipment_passive_service is not None:
+            sp_cost, sp_cost_log = equipment_passive_service.resolve_sp_cost(skill.sp_cost, attacker_passives)
+            if sp_cost_log:
+                logs.append(f"{sp_cost_log}:actor={attacker.unit_id}:skill={skill.id}")
+        if attacker.sp < sp_cost:
             raise ValueError(f"SP不足: actor={attacker.unit_id}, skill={skill.id}")
-        attacker.sp -= skill.sp_cost
+        attacker.sp -= sp_cost
         power = skill.power
         skill_id = skill.id
         target_scope = skill.target_scope
@@ -167,16 +184,20 @@ def apply_action(
         if command.action_type == "skill":
             if skill.effect_kind == "damage":
                 for effect_id in skill.apply_effect_ids:
-                    logs.append(_apply_effect(target, effect_id, effect_definitions))
+                    logs.append(_apply_effect(target, effect_id, effect_definitions, unit_passives))
                 damage = calculate_damage(attacker, target, power, effect_definitions)
                 target.apply_damage(damage)
             elif skill.effect_kind == "heal":
                 heal_amount = max(1, int(attacker.atk * skill.heal_power))
+                if equipment_passive_service is not None:
+                    heal_amount, heal_log = equipment_passive_service.apply_heal_bonus(heal_amount, attacker_passives)
+                    if heal_log:
+                        logs.append(f"{heal_log}:actor={attacker.unit_id}:skill={skill.id}")
                 healed = target.apply_heal(heal_amount)
                 logs.append(f"heal_applied:{target.unit_id}:amount={healed}:hp={target.hp}/{target.max_hp}")
             elif skill.effect_kind == "apply_effect":
                 for effect_id in skill.apply_effect_ids:
-                    logs.append(_apply_effect(target, effect_id, effect_definitions))
+                    logs.append(_apply_effect(target, effect_id, effect_definitions, unit_passives))
             elif skill.effect_kind == "cure_effect":
                 logs.extend(_cure_effects(target, skill.remove_effect_ids))
             else:
@@ -253,6 +274,8 @@ def execute_turn(
     command_factory,
     skills: dict[str, SkillDefinition],
     effect_definitions: dict[str, StatusEffectDefinition] | None = None,
+    equipment_passive_service: EquipmentPassiveService | None = None,
+    unit_passives: dict[str, UnitPassiveContext] | None = None,
 ) -> TurnResult:
     if state.is_finished():
         return TurnResult(acted=False, actor_id=None, summary=None, winner=state.winner(), logs=tuple())
@@ -262,7 +285,14 @@ def execute_turn(
         return TurnResult(acted=False, actor_id=actor.unit_id, summary=None, winner=state.winner(), logs=tuple())
 
     command = command_factory(state, actor)
-    result = apply_action(state, command, skills, effect_definitions)
+    result = apply_action(
+        state,
+        command,
+        skills,
+        effect_definitions,
+        equipment_passive_service=equipment_passive_service,
+        unit_passives=unit_passives,
+    )
     logs = list(command.logs)
     logs.extend(result.logs)
     logs.extend(_tick_end_of_turn_effects(actor, effect_definitions or {}))

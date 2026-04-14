@@ -31,7 +31,10 @@
     "target_scope": "single_ally",
     "effect_type": "cure_effect",
     "effect_value": 1,
-    "remove_effect_ids": ["effect.ailment.poison", "effect.debuff.defense_down"],
+    "remove_effect_ids": [
+      "effect.ailment.poison",
+      "effect.debuff.defense_down"
+    ],
     "stackable": true,
     "name": "解毒草",
     "description": "味方単体の毒と防御低下を解除する。"
@@ -95,5 +98,41 @@
     "stackable": false,
     "name": "レザージャケット",
     "description": "軽量で動きやすい革鎧。"
+  },
+  {
+    "item_id": "equip.armor.antivenom_charm",
+    "id": "equip.armor.antivenom_charm",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "アンチヴェノムチャーム",
+    "description": "毒を弾く護符。"
+  },
+  {
+    "item_id": "equip.weapon.prayer_staff",
+    "id": "equip.weapon.prayer_staff",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "プレイヤースタッフ",
+    "description": "回復魔法を高める杖。"
+  },
+  {
+    "item_id": "equip.armor.vanguard_emblem",
+    "id": "equip.armor.vanguard_emblem",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "ヴァンガードエンブレム",
+    "description": "戦闘開始時に闘気を高める紋章。"
   }
 ]

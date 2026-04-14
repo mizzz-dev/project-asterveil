@@ -15,6 +15,11 @@ class EquipmentSliceTests(unittest.TestCase):
         self.assertIn("equip.weapon.bronze_blade", definitions)
         self.assertEqual(definitions["equip.weapon.bronze_blade"].slot_type, "weapon")
         self.assertEqual(definitions["equip.armor.leather_jacket"].stat_modifiers["def"], 3)
+        self.assertTrue(definitions["equip.armor.antivenom_charm"].passive_effects)
+        self.assertEqual(
+            definitions["equip.armor.antivenom_charm"].passive_effects[0].passive_type,
+            "status_resistance",
+        )
 
     def test_load_inn_definitions(self) -> None:
         repo = AppMasterDataRepository(Path("data/master"))
@@ -47,6 +52,12 @@ class EquipmentSliceTests(unittest.TestCase):
         self.assertEqual(final["defense"], 19)
         self.assertEqual(final["spd"], 17)
 
+
+    def test_equipped_passive_summary(self) -> None:
+        repo = AppMasterDataRepository(Path("data/master"))
+        service = EquipmentService(repo.load_equipment())
+        summary = service.passive_summary({"weapon": "equip.weapon.prayer_staff"})
+        self.assertTrue(any("heal_bonus" in line for line in summary))
 
 if __name__ == "__main__":
     unittest.main()

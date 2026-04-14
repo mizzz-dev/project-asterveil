@@ -57,13 +57,18 @@
 ## 3.3 装備定義 (EquipmentDefinition)
 
 **必須**
-- `id`
-- `slot` (`weapon|armor|accessory`)
-- `rarity`
+- `id`（実データでは `equipment_id` も許容）
+- `slot` (`weapon|armor|accessory`)（実データでは `slot_type` も許容）
 - `stat_modifiers`
 
 **任意**
-- `passive_skill_id`
+- `rarity`
+- `passive_effects[]`
+  - `passive_id`
+  - `passive_type`（最小: `status_resistance|heal_bonus|battle_start_effect|sp_cost_modifier|stat_bonus`）
+  - `target`（最小: `self`）
+  - `parameters`（型ごとの追加パラメータ）
+  - `description`
 - `set_id`
 
 ## 3.4 敵定義 (EnemyDefinition)

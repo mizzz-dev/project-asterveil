@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from game.battle.application.equipment_passive_service import EquipmentPassiveService
 from game.battle.application.session import BattleSession
 from game.battle.domain.entities import ActionCommand, Team
 from game.battle.domain.services import BattleState, apply_action
@@ -379,6 +380,83 @@ class BattleCoreTests(unittest.TestCase):
                 self.skills,
                 self.effects,
             )
+
+    def test_equipment_passive_blocks_poison_application(self) -> None:
+        enemies, runtime_to_enemy_id = self.repo.build_enemy_party("encounter.ch01.port_wraith_single")
+        session = BattleSession.create(
+            [self.player],
+            enemies,
+            self.skills,
+            self.effects,
+            equipment_passive_service=EquipmentPassiveService(self.repo.load_equipment_passives()),
+            unit_equipment={self.player.id: {"armor": "equip.armor.antivenom_charm"}},
+            runtime_enemy_map=runtime_to_enemy_id,
+        )
+        actor = session.state.combatants[enemies[0].id]
+        target = session.state.combatants[self.player.id]
+        actor.sp = 200
+
+        result = apply_action(
+            session.state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=target.unit_id,
+                skill_id="skill.enemy.venom_bite",
+            ),
+            self.skills,
+            self.effects,
+            equipment_passive_service=session.equipment_passive_service,
+            unit_passives=session.unit_passives,
+        )
+
+        self.assertTrue(any(log.startswith(f"status_resisted:{target.unit_id}:effect.ailment.poison") for log in result.logs))
+        self.assertFalse(any(effect.effect_id == "effect.ailment.poison" for effect in target.active_effects))
+
+    def test_equipment_passive_increases_heal_amount(self) -> None:
+        service = EquipmentPassiveService(self.repo.load_equipment_passives())
+        session = BattleSession.create(
+            [self.player],
+            self.enemies,
+            self.skills,
+            self.effects,
+            equipment_passive_service=service,
+            unit_equipment={self.player.id: {"weapon": "equip.weapon.prayer_staff"}},
+        )
+        actor = session.state.combatants[self.player.id]
+        actor.sp = 200
+        actor.hp = 20
+
+        result = apply_action(
+            session.state,
+            ActionCommand(
+                actor_id=actor.unit_id,
+                action_type="skill",
+                target_id=actor.unit_id,
+                skill_id="skill.striker.first_aid",
+            ),
+            self.skills,
+            self.effects,
+            equipment_passive_service=session.equipment_passive_service,
+            unit_passives=session.unit_passives,
+        )
+
+        self.assertTrue(any(log.startswith("passive_triggered:heal_bonus") for log in result.logs))
+        self.assertEqual(actor.hp, 62)
+
+    def test_equipment_passive_applies_battle_start_buff(self) -> None:
+        session = BattleSession.create(
+            [self.player],
+            self.enemies,
+            self.skills,
+            self.effects,
+            equipment_passive_service=EquipmentPassiveService(self.repo.load_equipment_passives()),
+            unit_equipment={self.player.id: {"armor": "equip.armor.vanguard_emblem"}},
+        )
+        actor = session.state.combatants[self.player.id]
+
+        self.assertTrue(any(effect.effect_id == "effect.buff.attack_up" for effect in actor.active_effects))
+        self.assertTrue(any(log.startswith("passive_triggered:battle_start_effect") for log in session.opening_logs))
 
 
 if __name__ == "__main__":

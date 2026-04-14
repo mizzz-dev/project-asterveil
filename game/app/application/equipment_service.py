@@ -10,6 +10,15 @@ STAT_KEYS = ("hp", "sp", "atk", "defense", "spd")
 
 
 @dataclass(frozen=True)
+class EquipmentPassiveDefinition:
+    passive_id: str
+    passive_type: str
+    target: str
+    parameters: dict[str, object]
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class EquipmentDefinition:
     equipment_id: str
     name: str
@@ -18,6 +27,7 @@ class EquipmentDefinition:
     description: str = ""
     price: int = 0
     stackable: bool = False
+    passive_effects: tuple[EquipmentPassiveDefinition, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,23 @@ class EquipmentService:
                 if normalized in bonus:
                     bonus[normalized] += int(value)
         return bonus
+
+    def equipped_passives(self, equipped: dict[str, str]) -> tuple[EquipmentPassiveDefinition, ...]:
+        passives: list[EquipmentPassiveDefinition] = []
+        for slot, equipment_id in equipped.items():
+            if slot not in VALID_SLOTS:
+                continue
+            definition = self._equipment_definitions.get(equipment_id)
+            if definition is None:
+                continue
+            passives.extend(definition.passive_effects)
+        return tuple(passives)
+
+    def passive_summary(self, equipped: dict[str, str]) -> list[str]:
+        lines: list[str] = []
+        for passive in self.equipped_passives(equipped):
+            lines.append(f"{passive.passive_id}:{passive.passive_type}:{passive.description}")
+        return lines
 
     def resolve_final_stats(self, member: PartyMemberState) -> dict[str, int]:
         bonus = self.compute_bonuses(member.equipped)
