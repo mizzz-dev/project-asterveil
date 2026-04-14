@@ -176,6 +176,26 @@ def _run_talk_npc_flow(app: PlayableSliceApplication) -> list[str]:
     return app.talk_to_npc(selected, choice_selector=lambda items, _step_id: _choose(items))
 
 
+def _run_gathering_flow(app: PlayableSliceApplication) -> list[str]:
+    node_lines = app.gathering_node_lines()
+    for line in node_lines:
+        print(f"- {line}")
+    gatherable: list[tuple[str, str]] = [("cancel", "採取しない")]
+    for line in node_lines:
+        if not line.startswith("gather_node:"):
+            continue
+        _, node_id, name, node_type_part, gathered_part, can_gather_part, _ = line.split(":", 6)
+        if can_gather_part != "can_gather=True":
+            continue
+        gatherable.append((node_id, f"{name} ({node_id}) {node_type_part} {gathered_part}"))
+    if len(gatherable) == 1:
+        return ["gather_unavailable:no_gatherable_node"]
+    selected = _choose(gatherable)
+    if selected == "cancel":
+        return ["gather_cancelled"]
+    return app.gather_node(selected)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -221,6 +241,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_travel_flow(app)
             elif selected == "talk_npc":
                 logs = _run_talk_npc_flow(app)
+            elif selected == "gather":
+                logs = _run_gathering_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:
