@@ -1,0 +1,73 @@
+[
+  {
+    "ai_profile_id": "enemy_ai.port_wraith.poison_heal",
+    "action_rules": [
+      {
+        "rule_id": "rule.port_wraith.heal_low_ally",
+        "priority": 90,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.shadow_mend",
+        "target_rule": "lowest_hp_ally",
+        "conditions": [
+          {
+            "type": "ally_count_alive_at_least",
+            "value": 3
+          },
+          {
+            "type": "ally_needs_heal",
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "rule_id": "rule.port_wraith.apply_poison",
+        "priority": 80,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.venom_bite",
+        "target_rule": "lowest_hp_enemy",
+        "conditions": [
+          {
+            "type": "ally_count_alive_at_least",
+            "value": 3
+          },
+          {
+            "type": "enemy_has_no_effect",
+            "effect_id": "effect.ailment.poison"
+          }
+        ]
+      },
+      {
+        "rule_id": "rule.port_wraith.attack",
+        "priority": 20,
+        "action_type": "normal_attack",
+        "target_rule": "random_enemy",
+        "conditions": []
+      }
+    ]
+  },
+  {
+    "ai_profile_id": "enemy_ai.brine_slime.debuff",
+    "action_rules": [
+      {
+        "rule_id": "rule.brine_slime.armor_crush",
+        "priority": 70,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.armor_crush",
+        "target_rule": "lowest_hp_enemy",
+        "conditions": [
+          {
+            "type": "enemy_has_no_effect",
+            "effect_id": "effect.debuff.defense_down"
+          }
+        ]
+      },
+      {
+        "rule_id": "rule.brine_slime.attack",
+        "priority": 20,
+        "action_type": "normal_attack",
+        "target_rule": "random_enemy",
+        "conditions": []
+      }
+    ]
+  }
+]

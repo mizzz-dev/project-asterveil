@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from game.battle.application.enemy_ai import EnemyAiProfile, EnemyAiRule
 from game.battle.domain.entities import SkillDefinition, Stats, StatusEffectDefinition, Team, UnitDefinition
 
 
@@ -112,6 +113,35 @@ class MasterDataRepository:
                 description=str(item.get("description", "")),
             )
         return encounters
+
+    def load_enemy_ai_profiles(self) -> dict[str, EnemyAiProfile]:
+        ai_path = self._root / "enemy_ai.sample.json"
+        raw = json.loads(ai_path.read_text(encoding="utf-8"))
+        profiles: dict[str, EnemyAiProfile] = {}
+        for item in raw:
+            profile_id = str(item["ai_profile_id"])
+            rules = tuple(
+                EnemyAiRule(
+                    rule_id=str(rule["rule_id"]),
+                    priority=int(rule["priority"]),
+                    action_type=str(rule["action_type"]),
+                    skill_id=str(rule["skill_id"]) if rule.get("skill_id") else None,
+                    conditions=tuple(dict(condition) for condition in rule.get("conditions", [])),
+                    target_rule=str(rule.get("target_rule", "random_enemy")),
+                )
+                for rule in item.get("action_rules", [])
+            )
+            profiles[profile_id] = EnemyAiProfile(ai_profile_id=profile_id, action_rules=rules)
+        return profiles
+
+    def load_enemy_ai_bindings(self) -> dict[str, str]:
+        enemies_path = self._root / "enemies.sample.json"
+        raw = json.loads(enemies_path.read_text(encoding="utf-8"))
+        return {
+            str(item["id"]): str(item["ai_profile_id"])
+            for item in raw
+            if str(item.get("ai_profile_id", "")).strip()
+        }
 
     def build_enemy_party(self, encounter_id: str) -> tuple[list[UnitDefinition], dict[str, str]]:
         encounters = self.load_encounters()

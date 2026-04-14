@@ -122,6 +122,21 @@
 **後方互換メモ**
 - 旧形式 `enemy_id` 単独指定も最小実装では読み込み許容とする。
 
+## 3.8 敵AI定義 (EnemyAiProfile)
+
+**必須**
+- `ai_profile_id`
+- `action_rules[]`
+  - `rule_id`
+  - `priority`
+  - `action_type`（`normal_attack|skill`）
+  - `target_rule`（最小実装: `lowest_hp_enemy|random_enemy|self|lowest_hp_ally`）
+
+**任意**
+- `skill_id`（`action_type=skill` 時）
+- `conditions[]`
+  - 例: `self_hp_below_ratio`, `enemy_has_no_effect`, `ally_needs_heal`, `ally_count_alive_at_least`
+
 ---
 
 ## 4. セーブ対象データ (SaveData v1)

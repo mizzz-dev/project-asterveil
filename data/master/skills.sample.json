@@ -73,7 +73,7 @@
     "target_type": "single",
     "target_scope": "single_enemy",
     "cost": {
-      "sp": 120,
+      "sp": 12,
       "cooldown": 0
     },
     "effect_blocks": [
@@ -172,6 +172,49 @@
     ],
     "weight": 8,
     "break_power": 0,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.enemy.shadow_mend",
+    "target_type": "single",
+    "target_scope": "single_ally",
+    "effect_kind": "heal",
+    "heal_power": 1.0,
+    "cost": {
+      "sp": 14,
+      "cooldown": 0
+    },
+    "effect_blocks": [
+      {
+        "type": "heal",
+        "power": 1.0
+      }
+    ],
+    "weight": 8,
+    "break_power": 0,
+    "precast_warning": false
+  },
+  {
+    "id": "skill.enemy.armor_crush",
+    "target_type": "single",
+    "target_scope": "single_enemy",
+    "cost": {
+      "sp": 10,
+      "cooldown": 0
+    },
+    "effect_blocks": [
+      {
+        "type": "damage",
+        "element": "none",
+        "power": 0.9
+      },
+      {
+        "type": "apply_effect",
+        "effect_id": "effect.debuff.defense_down"
+      }
+    ],
+    "weight": 10,
+    "break_power": 8,
     "precast_warning": false
   }
 ]

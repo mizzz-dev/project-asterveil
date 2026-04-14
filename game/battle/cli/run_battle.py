@@ -13,10 +13,20 @@ def run_sample_battle() -> int:
     repo = MasterDataRepository(Path("data/master"))
     skills = repo.load_skills()
     effects = repo.load_status_effects()
+    enemy_ai_profiles = repo.load_enemy_ai_profiles()
+    enemy_ai_bindings = repo.load_enemy_ai_bindings()
     player = repo.load_character("char.main.rion")
-    enemies, _ = repo.build_enemy_party("encounter.ch01.port_wraith")
+    enemies, runtime_enemy_map = repo.build_enemy_party("encounter.ch01.port_wraith")
 
-    session = BattleSession.from_definitions([player], enemies, skills, effects)
+    session = BattleSession.create(
+        [player],
+        enemies,
+        skills,
+        effects,
+        enemy_ai_profiles=enemy_ai_profiles,
+        enemy_ai_by_enemy_id=enemy_ai_bindings,
+        runtime_enemy_map=runtime_enemy_map,
+    )
     session.bind_unit_skills({player.id: player.skill_ids, **{enemy.id: enemy.skill_ids for enemy in enemies}})
 
     round_no = 1

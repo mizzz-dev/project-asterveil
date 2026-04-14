@@ -2,19 +2,50 @@
   {
     "id": "enemy.ch01.port_wraith",
     "level": 6,
-    "stats": { "hp": 150, "atk": 18, "def": 14, "spd": 15 },
-    "skill_ids": ["skill.enemy.venom_bite"],
-    "weakness": { "elements": ["light"], "weapon_types": ["slash"] },
+    "stats": {
+      "hp": 150,
+      "atk": 18,
+      "def": 14,
+      "spd": 15
+    },
+    "skill_ids": [
+      "skill.enemy.venom_bite",
+      "skill.enemy.shadow_mend"
+    ],
+    "weakness": {
+      "elements": [
+        "light"
+      ],
+      "weapon_types": [
+        "slash"
+      ]
+    },
     "skill_rotation_id": "rotation.enemy.port_wraith.basic",
-    "drop_table_id": "drop.enemy.port_wraith"
+    "drop_table_id": "drop.enemy.port_wraith",
+    "ai_profile_id": "enemy_ai.port_wraith.poison_heal"
   },
   {
     "id": "enemy.ch01.brine_slime",
     "level": 5,
-    "stats": { "hp": 110, "atk": 14, "def": 10, "spd": 12 },
-    "skill_ids": [],
-    "weakness": { "elements": ["fire"], "weapon_types": ["slash"] },
+    "stats": {
+      "hp": 110,
+      "atk": 14,
+      "def": 10,
+      "spd": 12
+    },
+    "skill_ids": [
+      "skill.enemy.armor_crush"
+    ],
+    "weakness": {
+      "elements": [
+        "fire"
+      ],
+      "weapon_types": [
+        "slash"
+      ]
+    },
     "skill_rotation_id": "rotation.enemy.brine_slime.basic",
-    "drop_table_id": "drop.enemy.brine_slime"
+    "drop_table_id": "drop.enemy.brine_slime",
+    "ai_profile_id": "enemy_ai.brine_slime.debuff"
   }
 ]

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from game.battle.application.enemy_ai import EnemyAiProfile, EnemyAiService
 from game.battle.domain.entities import (
     ActionCommand,
     CombatantState,
@@ -18,6 +19,10 @@ class BattleSession:
     state: BattleState
     skills: dict[str, SkillDefinition]
     effect_definitions: dict[str, StatusEffectDefinition]
+    enemy_ai_service: EnemyAiService = field(default_factory=EnemyAiService)
+    enemy_ai_profiles: dict[str, EnemyAiProfile] = field(default_factory=dict)
+    enemy_ai_by_enemy_id: dict[str, str] = field(default_factory=dict)
+    runtime_enemy_map: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_definitions(
@@ -42,7 +47,32 @@ class BattleSession:
 
         return cls(state=BattleState(combatants), skills=skills, effect_definitions=effect_definitions or {})
 
+    @classmethod
+    def create(
+        cls,
+        player_units: list[UnitDefinition],
+        enemy_units: list[UnitDefinition],
+        skills: dict[str, SkillDefinition],
+        effect_definitions: dict[str, StatusEffectDefinition] | None = None,
+        enemy_ai_profiles: dict[str, EnemyAiProfile] | None = None,
+        enemy_ai_by_enemy_id: dict[str, str] | None = None,
+        runtime_enemy_map: dict[str, str] | None = None,
+        enemy_ai_service: EnemyAiService | None = None,
+    ) -> "BattleSession":
+        session = cls.from_definitions(player_units, enemy_units, skills, effect_definitions)
+        session.enemy_ai_service = enemy_ai_service or EnemyAiService()
+        session.enemy_ai_profiles = enemy_ai_profiles or {}
+        session.enemy_ai_by_enemy_id = enemy_ai_by_enemy_id or {}
+        session.runtime_enemy_map = runtime_enemy_map or {}
+        return session
+
     def default_command_factory(self, state: BattleState, actor: CombatantState) -> ActionCommand:
+        if actor.team == Team.ENEMY:
+            source_enemy_id = self.runtime_enemy_map.get(actor.unit_id, actor.unit_id)
+            ai_profile_id = self.enemy_ai_by_enemy_id.get(source_enemy_id)
+            ai_profile = self.enemy_ai_profiles.get(ai_profile_id) if ai_profile_id else None
+            return self.enemy_ai_service.choose_command(state, actor, ai_profile, self.skills)
+
         enemy_team = Team.ENEMY if actor.team == Team.PLAYER else Team.PLAYER
         enemy_targets = [c for c in state.combatants.values() if c.team == enemy_team and c.alive]
         enemy_targets.sort(key=lambda c: c.unit_id)
