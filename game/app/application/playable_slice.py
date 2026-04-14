@@ -15,6 +15,8 @@ from game.app.infrastructure.dialogue_event_repository import DialogueEventMaste
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.crafting.domain.services import CraftingService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
+from game.gathering.domain.services import GatheringService
+from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
 from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
@@ -52,6 +54,7 @@ class PlayableSliceApplication:
         self._app_master_repo = AppMasterDataRepository(master_root)
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
         self._crafting_repo = CraftingMasterDataRepository(master_root)
+        self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
@@ -91,7 +94,13 @@ class PlayableSliceApplication:
         self._inn_service = InnService(self._inns, self._equipment_service, self._status_effect_definitions)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
         self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
-        self._travel_service = TravelService(self._location_repo.load_locations(), hub_location_id=HUB_LOCATION_ID)
+        self._location_definitions = self._location_repo.load_locations()
+        self._travel_service = TravelService(self._location_definitions, hub_location_id=HUB_LOCATION_ID)
+        self._gathering_service = GatheringService()
+        self._gathering_nodes = self._gathering_repo.load_nodes(
+            valid_item_ids=set(self._item_definitions),
+            valid_location_ids=set(self._location_definitions),
+        )
         self._dialogue_service = DialogueService(self._dialogue_event_repo.load_npc_dialogues())
         self._location_event_service = LocationEventService(self._dialogue_event_repo.load_location_events())
 
@@ -100,6 +109,7 @@ class PlayableSliceApplication:
         self.last_event_id: str | None = None
         self.inventory_state: dict = {}
         self.completed_location_event_ids: set[str] = set()
+        self.gathered_node_ids: set[str] = set()
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -117,6 +127,7 @@ class PlayableSliceApplication:
         self.quest_session.world_flags.add("flag.game.new_game_started")
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
         self.completed_location_event_ids = set()
+        self.gathered_node_ids = set()
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self.last_event_id = "event.system.new_game_intro"
 
@@ -147,6 +158,8 @@ class PlayableSliceApplication:
         )
         event_meta = save_data.meta.get("event_state", {})
         self.completed_location_event_ids = set(event_meta.get("completed_location_event_ids", []))
+        gathering_meta = save_data.meta.get("gathering_state", {})
+        self.gathered_node_ids = set(gathering_meta.get("gathered_node_ids", []))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
@@ -167,6 +180,8 @@ class PlayableSliceApplication:
             ActionItem("quest_board", "クエストボードを見る"),
             ActionItem("move", "移動する"),
             ActionItem("current_location", "現在地を確認する"),
+            ActionItem("gather_nodes", "採取ポイント確認"),
+            ActionItem("gather", "採取する"),
             ActionItem("talk_npc", "NPCと話す"),
         ]
         if self._has_active_quest() and self._location_can_hunt():
@@ -198,6 +213,10 @@ class PlayableSliceApplication:
             return self.travel_options_lines()
         if action_key == "current_location":
             return self.current_location_lines()
+        if action_key == "gather_nodes":
+            return self.gathering_node_lines()
+        if action_key == "gather":
+            return ["gather_failed:selection_required"]
         if action_key == "talk_npc":
             return self.talk_npc_options_lines()
         if action_key == "inventory":
@@ -311,6 +330,9 @@ class PlayableSliceApplication:
                 "event_state": {
                     "completed_location_event_ids": sorted(self.completed_location_event_ids),
                 },
+                "gathering_state": {
+                    "gathered_node_ids": sorted(self.gathered_node_ids),
+                },
             },
         )
         self._save_repo.save(save_data)
@@ -337,10 +359,75 @@ class PlayableSliceApplication:
         definition = self._travel_service.location(self.location_state.current_location_id)
         if definition is None:
             return [f"current_location:unknown:{self.location_state.current_location_id}"]
+        node_statuses = self._gathering_service.list_nodes_for_location(
+            nodes=self._gathering_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags if self.quest_session else set(),
+            gathered_node_ids=self.gathered_node_ids,
+        )
         return [
             f"current_location:{definition.location_id}:{definition.name}:type={definition.location_type}",
             f"location_description:{definition.description}",
+            f"gathering_nodes:total={len(node_statuses)}:available={sum(1 for status in node_statuses if status.can_gather)}",
         ]
+
+    def gathering_node_lines(self) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._gathering_service.list_nodes_for_location(
+            nodes=self._gathering_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            gathered_node_ids=self.gathered_node_ids,
+        )
+        if not statuses:
+            return [f"gather_node:none:location={self.location_state.current_location_id}"]
+        lines = [f"gather_nodes:location={self.location_state.current_location_id}"]
+        for status in statuses:
+            lines.append(
+                f"gather_node:{status.node_id}:{status.name}:type={status.node_type}:"
+                f"can_gather={status.can_gather}:reason={status.reason_code}:gathered={status.is_gathered}"
+            )
+        return lines
+
+    def gather_from_node(self, node_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        node = self._gathering_nodes.get(node_id)
+        if node is None:
+            return [f"gather_failed:node_not_found:{node_id}"]
+        result = self._gathering_service.gather(
+            node=node,
+            current_location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            gathered_node_ids=self.gathered_node_ids,
+        )
+        lines = [result.message]
+        if not result.success:
+            return lines
+        self._gathering_service.apply_to_inventory(
+            inventory_state=self.inventory_state,
+            gained_items=result.gained_items,
+        )
+        for item_id, amount in sorted(result.gained_items.items()):
+            lines.append(f"gathered_item:{item_id}:x{amount}")
+        return lines
+
+    def gatherable_node_choices(self) -> list[tuple[str, str]]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._gathering_service.list_nodes_for_location(
+            nodes=self._gathering_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            gathered_node_ids=self.gathered_node_ids,
+        )
+        choices: list[tuple[str, str]] = []
+        for status in statuses:
+            if not status.can_gather:
+                continue
+            choices.append((status.node_id, f"{status.name} ({status.node_type})"))
+        return choices
 
     def talk_npc_options_lines(self) -> list[str]:
         npcs = self._dialogue_service.list_npcs_by_location(self.location_state.current_location_id)
