@@ -562,7 +562,9 @@ class PlayableSliceApplication:
         )
         if target_location_id and target_location_id != self.location_state.current_location_id:
             return [f"hunt_unavailable:wrong_location:required={target_location_id}"]
-        encounter_id = current_location.default_encounter_id or quest_definition.encounter_id
+        encounter_id = quest_definition.encounter_id or current_location.default_encounter_id
+        if quest_definition.encounter_id and quest_definition.encounter_id not in current_location.available_encounter_ids:
+            return [f"hunt_unavailable:encounter_not_in_location:{quest_definition.encounter_id}"]
         if encounter_id is None:
             return ["hunt_unavailable:no_encounter"]
 

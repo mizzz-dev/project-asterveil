@@ -19,6 +19,7 @@ def build_battle_executor(root: Path):
     effects = battle_repo.load_status_effects()
     enemy_ai_profiles = battle_repo.load_enemy_ai_profiles()
     enemy_ai_bindings = battle_repo.load_enemy_ai_bindings()
+    boss_encounters = battle_repo.load_boss_encounters()
     base_player = battle_repo.load_character("char.main.rion")
 
     def execute(encounter_id: str, party_members: list[Any] | None = None) -> BattleResult:
@@ -45,6 +46,8 @@ def build_battle_executor(root: Path):
             enemy_ai_profiles=enemy_ai_profiles,
             enemy_ai_by_enemy_id=enemy_ai_bindings,
             runtime_enemy_map=runtime_to_enemy_id,
+            encounter_id=encounter_id,
+            boss_encounters=boss_encounters,
         )
         session.bind_unit_skills(
             {

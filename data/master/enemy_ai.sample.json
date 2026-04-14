@@ -69,5 +69,50 @@
         "conditions": []
       }
     ]
+  },
+  {
+    "ai_profile_id": "enemy_ai.tide_serpent.phase1",
+    "action_rules": [
+      {
+        "rule_id": "rule.tide_serpent.phase1.poison_bite",
+        "priority": 80,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.venom_bite",
+        "target_rule": "lowest_hp_enemy",
+        "conditions": [
+          {
+            "type": "enemy_has_no_effect",
+            "effect_id": "effect.ailment.poison"
+          }
+        ]
+      },
+      {
+        "rule_id": "rule.tide_serpent.phase1.attack",
+        "priority": 20,
+        "action_type": "normal_attack",
+        "target_rule": "random_enemy",
+        "conditions": []
+      }
+    ]
+  },
+  {
+    "ai_profile_id": "enemy_ai.tide_serpent.phase2",
+    "action_rules": [
+      {
+        "rule_id": "rule.tide_serpent.phase2.tide_roar",
+        "priority": 95,
+        "action_type": "skill",
+        "skill_id": "skill.enemy.tide_roar",
+        "target_rule": "random_enemy",
+        "conditions": []
+      },
+      {
+        "rule_id": "rule.tide_serpent.phase2.attack",
+        "priority": 20,
+        "action_type": "normal_attack",
+        "target_rule": "lowest_hp_enemy",
+        "conditions": []
+      }
+    ]
   }
 ]

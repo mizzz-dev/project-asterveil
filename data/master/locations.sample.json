@@ -40,5 +40,20 @@
     "default_encounter_id": "encounter.ch01.port_wraith",
     "can_return_to_hub": true,
     "unlock_condition": "flag.ch01.port_record_restored"
+  },
+  {
+    "location_id": "location.dungeon.tidegate_ruins",
+    "name": "潮門遺跡",
+    "location_type": "dungeon",
+    "description": "海蛇の主が棲みついた封鎖遺跡。",
+    "accessible_from": [
+      "location.town.astel"
+    ],
+    "available_encounter_ids": [
+      "encounter.ch01.tide_serpent_boss"
+    ],
+    "default_encounter_id": "encounter.ch01.tide_serpent_boss",
+    "can_return_to_hub": true,
+    "unlock_condition": "flag.ch01.harbor_secured"
   }
 ]

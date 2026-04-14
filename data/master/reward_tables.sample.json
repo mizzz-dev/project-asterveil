@@ -10,6 +10,17 @@
           "amount": 1
         }
       ]
+    },
+    {
+      "encounter_id": "encounter.ch01.tide_serpent_boss",
+      "exp": 180,
+      "gold": 90,
+      "items": [
+        {
+          "item_id": "item.material.memory_shard",
+          "amount": 1
+        }
+      ]
     }
   ]
 }
