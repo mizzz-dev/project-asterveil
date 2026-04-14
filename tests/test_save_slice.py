@@ -6,8 +6,7 @@ import unittest
 from pathlib import Path
 
 from game.quest.application.session import QuestSliceSession
-from game.quest.cli.run_quest_slice import build_battle_executor
-from game.quest.domain.entities import QuestStatus
+from game.quest.domain.entities import BattleResult, QuestStatus
 from game.quest.domain.services import QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
 from game.save.application.session import SaveSliceApplicationService
@@ -22,10 +21,19 @@ class SaveSliceTests(unittest.TestCase):
         self.app_service = SaveSliceApplicationService()
 
     def _build_session(self) -> QuestSliceSession:
+        def battle_executor(encounter_id: str) -> BattleResult:
+            if encounter_id == "encounter.ch01.port_wraith":
+                return BattleResult(
+                    encounter_id=encounter_id,
+                    player_won=True,
+                    defeated_enemy_ids=("enemy.ch01.port_wraith",),
+                )
+            return BattleResult(encounter_id=encounter_id, player_won=True, defeated_enemy_ids=())
+
         return QuestSliceSession(
             quest_service=QuestProgressService(self.quest_repo.load_quests()),
             events=self.quest_repo.load_events(),
-            battle_executor=build_battle_executor(self.master_root),
+            battle_executor=battle_executor,
         )
 
     def _party_sample(self) -> list[PartyMemberState]:
