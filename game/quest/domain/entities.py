@@ -17,6 +17,8 @@ class QuestBoardStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     READY_TO_COMPLETE = "ready_to_complete"
     COMPLETED = "completed"
+    REPOST_WAITING = "repost_waiting"
+    REACCEPTABLE = "reacceptable"
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,9 @@ class QuestDefinition:
     reporting_npc_id: str = "npc.quest.board"
     category: str | None = None
     repeatable: bool = False
+    repeat_reset_rule: str = "manual_reaccept"
+    repeat_category: str | None = None
+    reaccept_message: str | None = None
     encounter_id: str | None = None
     target_location_id: str | None = None
 
@@ -66,6 +71,7 @@ class QuestState:
     objective_progress: dict[str, int] = field(default_factory=dict)
     objective_item_progress: dict[str, dict[str, int]] = field(default_factory=dict)
     reward_claimed: bool = False
+    repeat_ready: bool = False
 
 
 @dataclass(frozen=True)

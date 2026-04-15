@@ -131,6 +131,48 @@ class QuestSliceTests(unittest.TestCase):
         self.assertEqual(inventory_state["items"]["item.consumable.antidote_leaf"], 1)
         self.assertEqual(state.status, QuestStatus.READY_TO_COMPLETE)
 
+    def test_repeatable_quest_reset_rule_and_reaccept(self) -> None:
+        service = QuestProgressService(self.quest_defs)
+
+        herb_state = service.accept(service.create_initial_state("quest.ch01.herb_supply_turn_in"))
+        herb_state.objective_progress["obj.ch01.turn_in_antidote_leaf"] = 1
+        herb_state.status = QuestStatus.READY_TO_COMPLETE
+        service.complete(herb_state)
+
+        self.assertFalse(herb_state.repeat_ready)
+        self.assertFalse(service.apply_repeat_reset_trigger(herb_state, "on_return_to_hub"))
+        self.assertTrue(service.apply_repeat_reset_trigger(herb_state, "on_rest"))
+        self.assertTrue(herb_state.repeat_ready)
+
+        herb_state.objective_item_progress["obj.ch01.turn_in_antidote_leaf"]["item.consumable.antidote_leaf"] = 1
+        service.reaccept(herb_state)
+        self.assertEqual(herb_state.status, QuestStatus.IN_PROGRESS)
+        self.assertEqual(herb_state.objective_progress["obj.ch01.turn_in_antidote_leaf"], 0)
+        self.assertEqual(
+            herb_state.objective_item_progress["obj.ch01.turn_in_antidote_leaf"]["item.consumable.antidote_leaf"],
+            0,
+        )
+
+    def test_quest_board_status_for_repeatable_quest(self) -> None:
+        board = QuestBoardService(self.quest_defs, max_active_quests=2)
+        states = {}
+        world_flags = {"flag.game.new_game_started", "flag.ch01.port_record_restored"}
+        service = QuestProgressService(self.quest_defs)
+
+        harbor = service.accept(service.create_initial_state("quest.ch01.harbor_cleanup"))
+        harbor.status = QuestStatus.READY_TO_COMPLETE
+        service.complete(harbor)
+        states["quest.ch01.harbor_cleanup"] = harbor
+
+        entries = {entry.quest_id: entry for entry in board.list_entries(states, world_flags, party_level=8)}
+        self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "repost_waiting")
+        self.assertFalse(entries["quest.ch01.harbor_cleanup"].can_accept)
+
+        service.apply_repeat_reset_trigger(harbor, "on_return_to_hub")
+        entries = {entry.quest_id: entry for entry in board.list_entries(states, world_flags, party_level=8)}
+        self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "reacceptable")
+        self.assertTrue(entries["quest.ch01.harbor_cleanup"].can_accept)
+
 
 if __name__ == "__main__":
     unittest.main()

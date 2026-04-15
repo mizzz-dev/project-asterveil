@@ -106,6 +106,27 @@ class SaveSliceTests(unittest.TestCase):
         self.assertEqual(loaded.save_version, 1)
         self.assertEqual(loaded.party_members[0].character_id, "char.main.rion")
 
+    def test_repeatable_quest_repeat_ready_state_roundtrip(self) -> None:
+        session = self._build_session()
+        service = session.quest_service
+        state = service.accept(service.create_initial_state("quest.ch01.herb_supply_turn_in"))
+        state.objective_progress["obj.ch01.turn_in_antidote_leaf"] = 1
+        state.status = QuestStatus.READY_TO_COMPLETE
+        service.complete(state)
+        service.apply_repeat_reset_trigger(state, "on_rest")
+        session.quest_states["quest.ch01.herb_supply_turn_in"] = state
+
+        save_data = self.app_service.build_save_data(
+            quest_session=session,
+            party_members=self._party_sample(),
+            last_event_id="event.system.quest_report:quest.ch01.herb_supply_turn_in",
+        )
+        self.assertTrue(save_data.quest_state["quest.ch01.herb_supply_turn_in"].repeat_ready)
+
+        resumed = self._build_session()
+        self.app_service.restore_quest_session(resumed, save_data)
+        self.assertTrue(resumed.quest_states["quest.ch01.herb_supply_turn_in"].repeat_ready)
+
     def test_broken_data_detection(self) -> None:
         broken = {
             "save_version": 1,

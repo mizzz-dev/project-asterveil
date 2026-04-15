@@ -40,7 +40,10 @@
     "title": "港路の安全確保",
     "description": "港湾記録の件が片付いた後、残党亡霊をもう1体討伐する。",
     "category": "sub",
-    "repeatable": false,
+    "repeatable": true,
+    "repeat_reset_rule": "on_return_to_hub",
+    "repeat_category": "bounty",
+    "reaccept_message": "港路の巡回依頼が再掲された。",
     "reporting_npc_id": "npc.ch01.harbor_guard",
     "availability": {
       "required_quest_ids": [
@@ -143,7 +146,10 @@
     "title": "港の救護草納品",
     "description": "見張り兵ミナへ解毒草を2枚納品し、救護物資を補充する。",
     "category": "delivery",
-    "repeatable": false,
+    "repeatable": true,
+    "repeat_reset_rule": "on_rest",
+    "repeat_category": "supply",
+    "reaccept_message": "救護草の補充依頼が再掲された。",
     "reporting_npc_id": "npc.astel.guard",
     "availability": {
       "required_quest_ids": [],

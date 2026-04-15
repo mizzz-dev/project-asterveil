@@ -39,9 +39,33 @@ class QuestProgressService:
             objective_item_progress=objective_item_progress,
         )
 
+    def reset_for_reaccept(self, state: QuestState) -> QuestState:
+        definition = self._get_definition(state.quest_id)
+        state.objective_progress = {objective.id: 0 for objective in definition.objectives}
+        state.objective_item_progress = {
+            objective.id: {item_id: 0 for item_id, _ in objective.required_items}
+            for objective in definition.objectives
+            if objective.objective_type == "turn_in_items"
+        }
+        state.reward_claimed = False
+        state.repeat_ready = False
+        return state
+
     def accept(self, state: QuestState) -> QuestState:
         if state.status == QuestStatus.NOT_ACCEPTED:
             state.status = QuestStatus.IN_PROGRESS
+        return state
+
+    def reaccept(self, state: QuestState) -> QuestState:
+        definition = self._get_definition(state.quest_id)
+        if not definition.repeatable:
+            raise ValueError(f"Quest is not repeatable: {state.quest_id}")
+        if state.status != QuestStatus.COMPLETED:
+            raise ValueError(f"Quest is not completed: {state.quest_id}")
+        if not state.repeat_ready:
+            raise ValueError(f"Quest is not ready for reaccept: {state.quest_id}")
+        self.reset_for_reaccept(state)
+        state.status = QuestStatus.IN_PROGRESS
         return state
 
     def apply_battle_result(self, state: QuestState, battle_result: BattleResult) -> QuestState:
@@ -168,7 +192,23 @@ class QuestProgressService:
             raise ValueError(f"Quest is not completable: {state.quest_id}")
         state.status = QuestStatus.COMPLETED
         state.reward_claimed = True
+        definition = self._get_definition(state.quest_id)
+        if definition.repeatable and definition.repeat_reset_rule == "manual_reaccept":
+            state.repeat_ready = True
         return state
+
+    def apply_repeat_reset_trigger(self, state: QuestState, trigger: str) -> bool:
+        definition = self._get_definition(state.quest_id)
+        if not definition.repeatable:
+            return False
+        if state.status != QuestStatus.COMPLETED:
+            return False
+        if definition.repeat_reset_rule != trigger:
+            return False
+        if state.repeat_ready:
+            return False
+        state.repeat_ready = True
+        return True
 
     def is_objectives_completed(self, state: QuestState) -> bool:
         definition = self._get_definition(state.quest_id)
@@ -209,9 +249,8 @@ class QuestBoardService:
             state = quest_states.get(quest_id)
             board_status = self.evaluate_status(quest_id, quest_states, world_flags, party_level)
             can_accept = (
-                board_status == QuestBoardStatus.AVAILABLE
+                board_status in {QuestBoardStatus.AVAILABLE, QuestBoardStatus.REACCEPTABLE}
                 and self.can_accept_more(quest_states)
-                and not definition.repeatable
             )
             entries.append(
                 QuestBoardEntry(
@@ -238,6 +277,11 @@ class QuestBoardService:
         state = quest_states.get(quest_id)
         if state is not None:
             if state.status == QuestStatus.COMPLETED:
+                definition = self.definitions[quest_id]
+                if definition.repeatable:
+                    if state.repeat_ready:
+                        return QuestBoardStatus.REACCEPTABLE
+                    return QuestBoardStatus.REPOST_WAITING
                 return QuestBoardStatus.COMPLETED
             if state.status == QuestStatus.READY_TO_COMPLETE:
                 return QuestBoardStatus.READY_TO_COMPLETE

@@ -53,6 +53,9 @@ class QuestMasterDataRepository:
                 reporting_npc_id=str(quest.get("reporting_npc_id", "npc.quest.board")),
                 category=quest.get("category"),
                 repeatable=bool(quest.get("repeatable", False)),
+                repeat_reset_rule=str(quest.get("repeat_reset_rule", "manual_reaccept")),
+                repeat_category=quest.get("repeat_category"),
+                reaccept_message=quest.get("reaccept_message"),
                 encounter_id=quest.get("encounter_id"),
                 target_location_id=quest.get("target_location_id"),
             )

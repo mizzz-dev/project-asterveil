@@ -429,6 +429,63 @@ class PlayableSliceTests(unittest.TestCase):
                 2,
             )
 
+    def test_repeatable_turn_in_quest_reaccept_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.accept_quest("quest.ch01.herb_supply_turn_in")
+            app.turn_in_quest_items("quest.ch01.herb_supply_turn_in", auto_complete=True)
+            self.assertEqual(app.quest_state("quest.ch01.herb_supply_turn_in").status, QuestStatus.COMPLETED)
+
+            board_before_rest = app.quest_board_lines()
+            self.assertTrue(
+                any("quest.ch01.herb_supply_turn_in" in line and "status=repost_waiting" in line for line in board_before_rest)
+            )
+
+            rest_logs = app.stay_at_inn()
+            self.assertTrue(any(line.startswith("quest_repeat_ready:on_rest:") for line in rest_logs))
+
+            board_ready = app.quest_board_lines()
+            self.assertTrue(
+                any("quest.ch01.herb_supply_turn_in" in line and "status=reacceptable" in line for line in board_ready)
+            )
+
+            reaccept_logs = app.accept_quest("quest.ch01.herb_supply_turn_in")
+            self.assertEqual(reaccept_logs, ["quest_reaccepted:quest.ch01.herb_supply_turn_in"])
+            self.assertEqual(
+                app.quest_state("quest.ch01.herb_supply_turn_in").objective_progress["obj.ch01.turn_in_antidote_leaf"],
+                0,
+            )
+
+    def test_repeatable_bounty_reaccept_persists_after_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.accept_quest("quest.ch01.missing_port_record")
+            app.travel_to("location.field.tidal_flats")
+            app.perform_action("hunt")
+            app.perform_action("report")
+
+            app.accept_quest("quest.ch01.harbor_cleanup")
+            app.travel_to("location.field.tidal_flats")
+            app.perform_action("hunt")
+            app.perform_action("report")
+
+            waiting_board = app.quest_board_lines()
+            self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=repost_waiting" in line for line in waiting_board))
+
+            app.travel_to("location.field.tidal_flats")
+            return_logs = app.travel_to("location.town.astel")
+            self.assertTrue(any(line.startswith("quest_repeat_ready:on_return_to_hub:") for line in return_logs))
+            ready_board = app.quest_board_lines()
+            self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=reacceptable" in line for line in ready_board))
+            app.perform_action("save")
+
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            resumed_board = resumed.quest_board_lines()
+            self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=reacceptable" in line for line in resumed_board))
+
 
 if __name__ == "__main__":
     unittest.main()

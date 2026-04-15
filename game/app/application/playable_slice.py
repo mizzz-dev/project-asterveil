@@ -283,13 +283,18 @@ class PlayableSliceApplication:
         )
         if status == QuestBoardStatus.LOCKED:
             return [f"quest_accept_failed:locked:{quest_id}"]
-        if status != QuestBoardStatus.AVAILABLE:
+        if status not in {QuestBoardStatus.AVAILABLE, QuestBoardStatus.REACCEPTABLE}:
             return [f"quest_accept_failed:status={status.value}:{quest_id}"]
         if not self._quest_board_service.can_accept_more(self.quest_session.quest_states):
             return [f"quest_accept_failed:active_limit:{self._quest_board_service.max_active_quests}"]
 
         state = self.quest_session.quest_states.get(quest_id) or self.quest_session.quest_service.create_initial_state(quest_id)
-        self.quest_session.quest_states[quest_id] = self.quest_session.quest_service.accept(state)
+        self.quest_session.quest_states[quest_id] = state
+        if status == QuestBoardStatus.REACCEPTABLE:
+            self.quest_session.quest_service.reaccept(state)
+            self.last_event_id = f"event.system.quest_reaccepted:{quest_id}"
+            return [f"quest_reaccepted:{quest_id}"]
+        self.quest_session.quest_service.accept(state)
         self.quest_session.world_flags.add(f"flag.quest.accepted:{quest_id}")
         self.last_event_id = f"event.system.quest_accepted:{quest_id}"
         return [f"quest_accepted:{quest_id}"]
@@ -378,6 +383,7 @@ class PlayableSliceApplication:
         lines = [result.message, f"current_location:{location_id}:{destination.name if destination else location_id}"]
         if location_id == HUB_LOCATION_ID and previous_location_id != HUB_LOCATION_ID:
             lines.extend(self._apply_gathering_respawn("on_return_to_hub"))
+            lines.extend(self._apply_repeatable_quest_updates("on_return_to_hub"))
         lines.extend(self._run_on_enter_location_events(location_id))
         return lines
 
@@ -653,6 +659,7 @@ class PlayableSliceApplication:
         lines = [result.message]
         if result.success:
             lines.extend(self._apply_gathering_respawn("on_rest"))
+            lines.extend(self._apply_repeatable_quest_updates("on_rest"))
             lines.extend(self.party_member_lines())
         return lines
 
@@ -816,6 +823,7 @@ class PlayableSliceApplication:
             self.location_state.current_location_id = HUB_LOCATION_ID
             logs.append(f"returned_to_hub:{HUB_LOCATION_ID}")
             logs.extend(self._apply_gathering_respawn("on_return_to_hub"))
+            logs.extend(self._apply_repeatable_quest_updates("on_return_to_hub"))
         return logs
 
     def _apply_gathering_respawn(self, trigger: str) -> list[str]:
@@ -828,6 +836,19 @@ class PlayableSliceApplication:
             return [f"gathering_respawned:{trigger}:count=0"]
         lines = [f"gathering_respawned:{trigger}:count={len(respawned_node_ids)}"]
         lines.extend(f"gathering_respawned_node:{trigger}:{node_id}" for node_id in respawned_node_ids)
+        return lines
+
+    def _apply_repeatable_quest_updates(self, trigger: str) -> list[str]:
+        if self.quest_session is None:
+            return []
+        ready_ids: list[str] = []
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            if self.quest_session.quest_service.apply_repeat_reset_trigger(state, trigger):
+                ready_ids.append(quest_id)
+        if not ready_ids:
+            return [f"quest_repeat_ready:{trigger}:count=0"]
+        lines = [f"quest_repeat_ready:{trigger}:count={len(ready_ids)}"]
+        lines.extend(f"quest_repeat_ready_id:{trigger}:{quest_id}" for quest_id in ready_ids)
         return lines
 
     def _restore_gathered_node_ids(self, gathering_meta: dict) -> set[str]:
@@ -1076,5 +1097,7 @@ class PlayableSliceApplication:
         for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
             logs.append(f"location_unlocked:{unlocked}")
         logs.extend(self._evaluate_recipe_unlocks())
+        if state.repeat_ready:
+            logs.append(f"quest_repeat_ready:manual_reaccept:{quest_id}")
         self.last_event_id = f"event.system.quest_report:{quest_id}"
         return logs

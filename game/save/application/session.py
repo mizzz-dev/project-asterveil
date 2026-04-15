@@ -35,6 +35,7 @@ class SaveSliceApplicationService:
                 objective_progress=ordered_progress,
                 objective_item_progress=ordered_item_progress,
                 reward_claimed=state.reward_claimed,
+                repeat_ready=state.repeat_ready,
             )
 
         world_flags = {flag_id: True for flag_id in sorted(quest_session.world_flags)}
@@ -80,6 +81,7 @@ class SaveSliceApplicationService:
                 objective_progress=objective_progress,
                 objective_item_progress=objective_item_progress,
                 reward_claimed=quest_save.reward_claimed,
+                repeat_ready=quest_save.repeat_ready,
             )
 
         quest_session.quest_states = restored_quests
