@@ -23,8 +23,10 @@ class QuestBoardStatus(str, Enum):
 class ObjectiveDefinition:
     id: str
     objective_type: str
-    target_enemy_id: str
-    required_count: int
+    target_enemy_id: str | None = None
+    required_count: int = 0
+    required_items: tuple[tuple[str, int], ...] = tuple()
+    allow_partial_turn_in: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class QuestState:
     quest_id: str
     status: QuestStatus = QuestStatus.NOT_ACCEPTED
     objective_progress: dict[str, int] = field(default_factory=dict)
+    objective_item_progress: dict[str, dict[str, int]] = field(default_factory=dict)
     reward_claimed: bool = False
 
 

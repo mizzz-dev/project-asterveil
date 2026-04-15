@@ -136,5 +136,89 @@
       "completion_flag": "flag.ch01.tide_serpent_subjugated"
     },
     "target_location_id": "location.dungeon.tidegate_ruins"
+  },
+  {
+    "quest_id": "quest.ch01.herb_supply_turn_in",
+    "id": "quest.ch01.herb_supply_turn_in",
+    "title": "港の救護草納品",
+    "description": "見張り兵ミナへ解毒草を2枚納品し、救護物資を補充する。",
+    "category": "delivery",
+    "repeatable": false,
+    "reporting_npc_id": "npc.astel.guard",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
+      "min_level": 1
+    },
+    "objectives": [
+      {
+        "id": "obj.ch01.turn_in_antidote_leaf",
+        "type": "turn_in_items",
+        "required_items": [
+          {
+            "item_id": "item.consumable.antidote_leaf",
+            "quantity": 1
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 60,
+      "gold": 40,
+      "items": [
+        {
+          "item_id": "item.consumable.focus_drop",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.ch01.herb_supply_delivered"
+    },
+    "target_location_id": "location.town.astel"
+  },
+  {
+    "quest_id": "quest.ch01.memory_fragment_delivery",
+    "id": "quest.ch01.memory_fragment_delivery",
+    "title": "記憶片の研究納品",
+    "description": "亡霊から回収した記憶片を2個納品して港の記録修復を進める。",
+    "category": "delivery",
+    "repeatable": false,
+    "reporting_npc_id": "npc.astel.elder",
+    "availability": {
+      "required_quest_ids": [
+        "quest.ch01.missing_port_record"
+      ],
+      "required_flags": [
+        "flag.ch01.port_record_restored"
+      ],
+      "min_level": 1
+    },
+    "objectives": [
+      {
+        "id": "obj.ch01.turn_in_memory_shard",
+        "type": "turn_in_items",
+        "required_items": [
+          {
+            "item_id": "item.material.memory_shard",
+            "quantity": 2
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 110,
+      "gold": 70,
+      "items": [
+        {
+          "item_id": "item.material.iron_fragment",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.ch01.memory_fragments_delivered"
+    },
+    "target_location_id": "location.town.astel"
   }
 ]

@@ -7,8 +7,8 @@ from game.quest.domain.entities import (
     EventDefinition,
     EventStep,
     EventStepAction,
-    QuestAvailability,
     ObjectiveDefinition,
+    QuestAvailability,
     QuestDefinition,
     QuestReward,
 )
@@ -24,15 +24,7 @@ class QuestMasterDataRepository:
         for quest in raw:
             self._validate_quest(quest)
             quest_id = quest.get("quest_id", quest["id"])
-            objectives = tuple(
-                ObjectiveDefinition(
-                    id=objective["id"],
-                    objective_type=objective["type"],
-                    target_enemy_id=objective["target_enemy_id"],
-                    required_count=int(objective["required_count"]),
-                )
-                for objective in quest["objectives"]
-            )
+            objectives = tuple(self._to_objective_definition(quest_id, objective) for objective in quest["objectives"])
             reward_block = quest["reward"]
             availability_raw = quest.get("availability", {})
             definitions[quest_id] = QuestDefinition(
@@ -95,21 +87,77 @@ class QuestMasterDataRepository:
             )
         return definitions
 
+    def _to_objective_definition(self, quest_id: str, objective: dict) -> ObjectiveDefinition:
+        objective_type = str(objective["type"])
+        if objective_type == "kill_enemy":
+            return ObjectiveDefinition(
+                id=objective["id"],
+                objective_type=objective_type,
+                target_enemy_id=str(objective["target_enemy_id"]),
+                required_count=int(objective["required_count"]),
+            )
+
+        if objective_type == "turn_in_items":
+            required_items = tuple(
+                (str(row["item_id"]), int(row["quantity"]))
+                for row in objective.get("required_items", [])
+            )
+            required_count = int(objective.get("required_count", sum(quantity for _, quantity in required_items)))
+            return ObjectiveDefinition(
+                id=objective["id"],
+                objective_type=objective_type,
+                required_count=required_count,
+                required_items=required_items,
+                allow_partial_turn_in=bool(objective.get("allow_partial_turn_in", False)),
+            )
+
+        raise ValueError(
+            "quests.sample.json objective has unsupported type="
+            f"{objective_type} quest={quest_id} objective={objective.get('id')}"
+        )
+
     def _validate_quest(self, quest: dict) -> None:
         if "id" not in quest and "quest_id" not in quest:
             raise ValueError("quests.sample.json missing field=id/quest_id")
 
+        quest_id = quest.get("quest_id", quest.get("id"))
         required = ["title", "description", "objectives", "reward"]
         for field in required:
             if field not in quest:
-                raise ValueError(f"quests.sample.json missing field={field} quest={quest.get('id')}")
+                raise ValueError(f"quests.sample.json missing field={field} quest={quest_id}")
         for objective in quest["objectives"]:
-            for field in ["id", "type", "target_enemy_id", "required_count"]:
+            for field in ["id", "type"]:
                 if field not in objective:
                     raise ValueError(
                         "quests.sample.json objective missing "
-                        f"field={field} quest={quest['id']} objective={objective.get('id')}"
+                        f"field={field} quest={quest_id} objective={objective.get('id')}"
                     )
+            objective_type = str(objective["type"])
+            if objective_type == "kill_enemy":
+                for field in ["target_enemy_id", "required_count"]:
+                    if field not in objective:
+                        raise ValueError(
+                            "quests.sample.json objective missing "
+                            f"field={field} quest={quest_id} objective={objective.get('id')}"
+                        )
+            elif objective_type == "turn_in_items":
+                if "required_items" not in objective:
+                    raise ValueError(
+                        "quests.sample.json objective missing field=required_items "
+                        f"quest={quest_id} objective={objective.get('id')}"
+                    )
+                for req in objective["required_items"]:
+                    for field in ["item_id", "quantity"]:
+                        if field not in req:
+                            raise ValueError(
+                                "quests.sample.json objective.required_items missing "
+                                f"field={field} quest={quest_id} objective={objective.get('id')}"
+                            )
+            else:
+                raise ValueError(
+                    "quests.sample.json objective has unsupported type="
+                    f"{objective_type} quest={quest_id} objective={objective.get('id')}"
+                )
         reward = quest["reward"]
         if "items" in reward:
             for item in reward["items"]:
@@ -117,7 +165,7 @@ class QuestMasterDataRepository:
                     if field not in item:
                         raise ValueError(
                             "quests.sample.json reward.items missing "
-                            f"field={field} quest={quest['id']}"
+                            f"field={field} quest={quest_id}"
                         )
 
     def _validate_event(self, event: dict) -> None:

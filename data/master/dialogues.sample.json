@@ -69,8 +69,12 @@
     "npc_id": "npc.astel.elder",
     "priority": 255,
     "condition": {
-      "required_flags": ["flag.helped_npc"],
-      "excluded_flags": ["flag.ch01.tidal_flats_intro_seen"],
+      "required_flags": [
+        "flag.helped_npc"
+      ],
+      "excluded_flags": [
+        "flag.ch01.tidal_flats_intro_seen"
+      ],
       "required_quest_status": {
         "quest.ch01.missing_port_record": "in_progress"
       }
@@ -84,8 +88,12 @@
     "npc_id": "npc.astel.elder",
     "priority": 254,
     "condition": {
-      "required_flags": ["flag.refused_npc"],
-      "excluded_flags": ["flag.helped_npc"]
+      "required_flags": [
+        "flag.refused_npc"
+      ],
+      "excluded_flags": [
+        "flag.helped_npc"
+      ]
     },
     "lines": [
       "まだ頼みは残っている。受ける気になったら掲示板を見てくれ。"
@@ -96,7 +104,9 @@
     "npc_id": "npc.astel.elder",
     "priority": 100,
     "condition": {
-      "excluded_flags": ["flag.quest.accepted:quest.ch01.missing_port_record"]
+      "excluded_flags": [
+        "flag.quest.accepted:quest.ch01.missing_port_record"
+      ]
     },
     "lines": [
       "掲示板に依頼を出してある。手が空いていたら受けてくれ。"
@@ -133,7 +143,9 @@
     "npc_id": "npc.astel.elder",
     "priority": 300,
     "condition": {
-      "required_flags": ["flag.ch01.tidal_flats_intro_seen"],
+      "required_flags": [
+        "flag.ch01.tidal_flats_intro_seen"
+      ],
       "required_quest_status": {
         "quest.ch01.missing_port_record": "completed"
       }
@@ -147,7 +159,11 @@
     "npc_id": "npc.astel.guard",
     "priority": 100,
     "condition": {
-      "excluded_flags": ["flag.ch01.tidal_flats_intro_seen", "flag.helped_npc", "flag.refused_npc"]
+      "excluded_flags": [
+        "flag.ch01.tidal_flats_intro_seen",
+        "flag.helped_npc",
+        "flag.refused_npc"
+      ]
     },
     "lines": [
       "干潟の入り口で不穏な気配がするの。気をつけて。"
@@ -158,8 +174,12 @@
     "npc_id": "npc.astel.guard",
     "priority": 170,
     "condition": {
-      "required_flags": ["flag.helped_npc"],
-      "excluded_flags": ["flag.ch01.tidal_flats_intro_seen"]
+      "required_flags": [
+        "flag.helped_npc"
+      ],
+      "excluded_flags": [
+        "flag.ch01.tidal_flats_intro_seen"
+      ]
     },
     "lines": [
       "長老の頼みを受けたのね。干潟の道は霧が濃いから注意して。"
@@ -170,8 +190,13 @@
     "npc_id": "npc.astel.guard",
     "priority": 160,
     "condition": {
-      "required_flags": ["flag.refused_npc"],
-      "excluded_flags": ["flag.helped_npc", "flag.ch01.tidal_flats_intro_seen"]
+      "required_flags": [
+        "flag.refused_npc"
+      ],
+      "excluded_flags": [
+        "flag.helped_npc",
+        "flag.ch01.tidal_flats_intro_seen"
+      ]
     },
     "lines": [
       "依頼を断ったって聞いたわ。無理はしないでね。"
@@ -182,10 +207,266 @@
     "npc_id": "npc.astel.guard",
     "priority": 200,
     "condition": {
-      "required_flags": ["flag.ch01.tidal_flats_intro_seen"]
+      "required_flags": [
+        "flag.ch01.tidal_flats_intro_seen"
+      ]
     },
     "lines": [
       "あの霧、もう出ていないわ。あなたが片づけたのね。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard.turn_in_offer",
+    "npc_id": "npc.astel.guard",
+    "priority": 320,
+    "condition": {
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
+      "excluded_flags": [
+        "flag.ch01.herb_supply_delivered",
+        "flag.ch01.tidal_flats_intro_seen",
+        "flag.quest.accepted:quest.ch01.herb_supply_turn_in",
+        "flag.refused_npc"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.guard_offer",
+        "speaker": "npc.astel.guard",
+        "line": "救護所の解毒草が不足しているの。1枚集めてくれる？",
+        "choices": [
+          {
+            "choice_id": "choice.guard_accept",
+            "text": "納品依頼を受ける",
+            "next_step_id": "step.guard_accept_done",
+            "effects": [
+              {
+                "action_type": "accept_quest",
+                "params": {
+                  "quest_id": "quest.ch01.herb_supply_turn_in"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.guard_decline",
+            "text": "今は受けない",
+            "next_step_id": "step.guard_decline",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.guard_accept_done",
+        "speaker": "npc.astel.guard",
+        "line": "ありがとう。素材はこの場で受け取るわ。"
+      },
+      {
+        "step_id": "step.guard_decline",
+        "speaker": "npc.astel.guard",
+        "line": "了解。準備できたらまた声をかけて。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard.turn_in_progress",
+    "npc_id": "npc.astel.guard",
+    "priority": 330,
+    "condition": {
+      "required_quest_status": {
+        "quest.ch01.herb_supply_turn_in": "in_progress"
+      }
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.guard_turn_in",
+        "speaker": "npc.astel.guard",
+        "line": "解毒草1枚の納品を確認するわ。渡せる？",
+        "choices": [
+          {
+            "choice_id": "choice.guard_turn_in",
+            "text": "アイテムを提出する",
+            "next_step_id": "step.guard_turn_in_after",
+            "effects": [
+              {
+                "action_type": "turn_in_quest",
+                "params": {
+                  "quest_id": "quest.ch01.herb_supply_turn_in",
+                  "auto_complete": "true"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.guard_later",
+            "text": "あとで渡す",
+            "next_step_id": "step.guard_turn_in_later",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.guard_turn_in_after",
+        "speaker": "npc.astel.guard",
+        "line": "受け取ったわ。必要数に満たない場合はまた持ってきて。"
+      },
+      {
+        "step_id": "step.guard_turn_in_later",
+        "speaker": "npc.astel.guard",
+        "line": "了解。集まったらすぐ渡してね。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard.turn_in_completed",
+    "npc_id": "npc.astel.guard",
+    "priority": 340,
+    "condition": {
+      "required_flags": [
+        "flag.ch01.herb_supply_delivered"
+      ]
+    },
+    "lines": [
+      "納品助かったわ。これでしばらく救護所は回せる。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder.memory_turn_in_progress",
+    "npc_id": "npc.astel.elder",
+    "priority": 340,
+    "condition": {
+      "required_quest_status": {
+        "quest.ch01.memory_fragment_delivery": "in_progress"
+      }
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.elder_memory_turn_in",
+        "speaker": "npc.astel.elder",
+        "line": "記憶片2個の納品だ。手元にあるなら見せてくれ。",
+        "choices": [
+          {
+            "choice_id": "choice.elder_memory_turn_in",
+            "text": "記憶片を提出する",
+            "next_step_id": "step.elder_memory_after",
+            "effects": [
+              {
+                "action_type": "turn_in_quest",
+                "params": {
+                  "quest_id": "quest.ch01.memory_fragment_delivery",
+                  "auto_complete": "true"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.elder_memory_later",
+            "text": "まだ集める",
+            "next_step_id": "step.elder_memory_later",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.elder_memory_after",
+        "speaker": "npc.astel.elder",
+        "line": "必要数に足りなければ、引き続き集めてくれ。"
+      },
+      {
+        "step_id": "step.elder_memory_later",
+        "speaker": "npc.astel.elder",
+        "line": "承知した。亡霊由来の記憶片を頼む。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder.memory_turn_in_offer",
+    "npc_id": "npc.astel.elder",
+    "priority": 335,
+    "condition": {
+      "required_flags": [
+        "flag.ch01.port_record_restored"
+      ],
+      "excluded_flags": [
+        "flag.quest.accepted:quest.ch01.memory_fragment_delivery",
+        "flag.ch01.memory_fragments_delivered"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.elder_memory_offer",
+        "speaker": "npc.astel.elder",
+        "line": "記録修復のため、記憶片を2個納品してくれないか。",
+        "choices": [
+          {
+            "choice_id": "choice.elder_memory_accept",
+            "text": "依頼を受ける",
+            "next_step_id": "step.elder_memory_accept_done",
+            "effects": [
+              {
+                "action_type": "accept_quest",
+                "params": {
+                  "quest_id": "quest.ch01.memory_fragment_delivery"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.elder_memory_decline",
+            "text": "今は受けない",
+            "next_step_id": "step.elder_memory_decline",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.elder_memory_accept_done",
+        "speaker": "npc.astel.elder",
+        "line": "助かる。集まったら私に渡してくれ。"
+      },
+      {
+        "step_id": "step.elder_memory_decline",
+        "speaker": "npc.astel.elder",
+        "line": "わかった。必要になったらまた頼む。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.elder.memory_turn_in_completed",
+    "npc_id": "npc.astel.elder",
+    "priority": 345,
+    "condition": {
+      "required_flags": [
+        "flag.ch01.memory_fragments_delivered"
+      ]
+    },
+    "lines": [
+      "記憶片のおかげで記録の補修が進んだ。礼を言う。"
     ]
   }
 ]

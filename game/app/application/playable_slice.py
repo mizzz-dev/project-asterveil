@@ -299,24 +299,35 @@ class PlayableSliceApplication:
         quest_id = self._ready_to_complete_quest_id()
         if quest_id is None:
             return ["report_unavailable:no_ready_quest"]
-        state = self.quest_session.quest_states[quest_id]
-        self.quest_session.quest_service.complete(state)
-        quest_reward = self.quest_session.quest_service.definitions[quest_id].reward
-        logs = [f"quest_completed:{quest_id}"]
-        logs.extend(
-            self._reward_service.apply(
-                self._reward_service.from_quest_reward(quest_reward),
-                self.party_members,
-                self.inventory_state,
-            )
+        return self._complete_quest(quest_id)
+
+    def turn_in_quest_items(self, quest_id: str, *, auto_complete: bool = False) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        definition = self.quest_session.quest_service.definitions.get(quest_id)
+        if definition is None:
+            return [f"turn_in_failed:quest_not_found:{quest_id}"]
+        if definition.reporting_npc_id:
+            npc_ids = {npc.npc_id for npc in self._dialogue_service.list_npcs_by_location(self.location_state.current_location_id)}
+            if definition.reporting_npc_id not in npc_ids:
+                return [f"turn_in_failed:wrong_location_for_reporting_npc:{definition.reporting_npc_id}"]
+
+        state = self.quest_session.quest_states.get(quest_id)
+        if state is None:
+            return [f"turn_in_failed:quest_not_accepted:{quest_id}"]
+
+        turn_in_plan = self.quest_session.quest_service.build_turn_in_plan(
+            state=state,
+            inventory_items=self.inventory_state.get("items", {}),
         )
-        if quest_reward.completion_flag:
-            self.quest_session.world_flags.add(quest_reward.completion_flag)
-            logs.append(f"flag_set:{quest_reward.completion_flag}")
-        for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
-            logs.append(f"location_unlocked:{unlocked}")
-        logs.extend(self._evaluate_recipe_unlocks())
-        self.last_event_id = f"event.system.quest_report:{quest_id}"
+        if not turn_in_plan.success:
+            return [turn_in_plan.code]
+
+        self.quest_session.quest_service.consume_turn_in_items(self.inventory_state, turn_in_plan)
+        logs = self.quest_session.quest_service.apply_turn_in_progress(state, turn_in_plan)
+        if auto_complete and state.status == QuestStatus.READY_TO_COMPLETE:
+            logs.extend(self._complete_quest(quest_id))
+        self.last_event_id = f"event.system.quest_turn_in:{quest_id}"
         return logs
 
     def save_game(self) -> None:
@@ -525,6 +536,13 @@ class PlayableSliceApplication:
             return logs
         if action_type == "accept_quest":
             return self.accept_quest(params["quest_id"])
+        if action_type == "turn_in_quest":
+            return self.turn_in_quest_items(
+                params["quest_id"],
+                auto_complete=params.get("auto_complete", "false").lower() == "true",
+            )
+        if action_type == "report_quest":
+            return self._complete_quest(params["quest_id"])
         if action_type == "start_battle":
             return self._run_event_battle(params["encounter_id"])
         if action_type == "end_dialogue":
@@ -956,6 +974,17 @@ class PlayableSliceApplication:
                 f"quest:{quest_id}:status={state.status.value}:progress={state.objective_progress}:"
                 f"reward_claimed={state.reward_claimed}"
             )
+            definition = self.quest_session.quest_service.definitions[quest_id]
+            for objective in definition.objectives:
+                if objective.objective_type != "turn_in_items":
+                    continue
+                for item_id, required in objective.required_items:
+                    owned = int(self.inventory_state.get("items", {}).get(item_id, 0))
+                    submitted = int(state.objective_item_progress.get(objective.id, {}).get(item_id, 0))
+                    lines.append(
+                        f"quest_turn_in:{quest_id}:{objective.id}:{item_id}:owned={owned}:"
+                        f"submitted={submitted}/{required}"
+                    )
         return lines
 
     def _party_level(self) -> int:
@@ -995,3 +1024,31 @@ class PlayableSliceApplication:
         if self.quest_session is None:
             return None
         return self.quest_session.quest_states.get(quest_id)
+
+    def _complete_quest(self, quest_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        state = self.quest_session.quest_states.get(quest_id)
+        if state is None:
+            return [f"report_failed:quest_not_found:{quest_id}"]
+        if state.status != QuestStatus.READY_TO_COMPLETE:
+            return [f"report_failed:not_ready:{quest_id}"]
+
+        self.quest_session.quest_service.complete(state)
+        quest_reward = self.quest_session.quest_service.definitions[quest_id].reward
+        logs = [f"quest_completed:{quest_id}"]
+        logs.extend(
+            self._reward_service.apply(
+                self._reward_service.from_quest_reward(quest_reward),
+                self.party_members,
+                self.inventory_state,
+            )
+        )
+        if quest_reward.completion_flag:
+            self.quest_session.world_flags.add(quest_reward.completion_flag)
+            logs.append(f"flag_set:{quest_reward.completion_flag}")
+        for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
+            logs.append(f"location_unlocked:{unlocked}")
+        logs.extend(self._evaluate_recipe_unlocks())
+        self.last_event_id = f"event.system.quest_report:{quest_id}"
+        return logs

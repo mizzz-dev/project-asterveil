@@ -29,9 +29,11 @@ class SaveSliceApplicationService:
         for quest_id, state in quest_session.quest_states.items():
             definition = quest_session.quest_service.definitions[quest_id]
             ordered_progress = [state.objective_progress.get(objective.id, 0) for objective in definition.objectives]
+            ordered_item_progress = [dict(state.objective_item_progress.get(objective.id, {})) for objective in definition.objectives]
             quest_state[quest_id] = QuestSaveState(
                 status=state.status.value,
                 objective_progress=ordered_progress,
+                objective_item_progress=ordered_item_progress,
                 reward_claimed=state.reward_claimed,
             )
 
@@ -67,10 +69,16 @@ class SaveSliceApplicationService:
                 objective.id: quest_save.objective_progress[index]
                 for index, objective in enumerate(definition.objectives)
             }
+            objective_item_progress = {
+                objective.id: dict(quest_save.objective_item_progress[index])
+                for index, objective in enumerate(definition.objectives)
+                if index < len(quest_save.objective_item_progress)
+            }
             restored_quests[quest_id] = QuestState(
                 quest_id=quest_id,
                 status=QuestStatus(quest_save.status),
                 objective_progress=objective_progress,
+                objective_item_progress=objective_item_progress,
                 reward_claimed=quest_save.reward_claimed,
             )
 

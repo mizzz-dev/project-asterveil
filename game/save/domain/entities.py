@@ -44,6 +44,7 @@ class PartyMemberState:
 class QuestSaveState:
     status: str
     objective_progress: list[int]
+    objective_item_progress: list[dict[str, int]] = field(default_factory=list)
     reward_claimed: bool = False
 
 
@@ -98,6 +99,7 @@ class SaveData:
                 quest_id: {
                     "status": state.status,
                     "objective_progress": state.objective_progress,
+                    "objective_item_progress": state.objective_item_progress,
                     "reward_claimed": state.reward_claimed,
                 }
                 for quest_id, state in self.quest_state.items()
@@ -171,6 +173,10 @@ class SaveData:
             quests[quest_id] = QuestSaveState(
                 status=str(quest_raw["status"]),
                 objective_progress=[int(value) for value in objective_progress],
+                objective_item_progress=[
+                    {str(item_id): int(amount) for item_id, amount in per_objective.items()}
+                    for per_objective in quest_raw.get("objective_item_progress", [])
+                ],
                 reward_claimed=bool(quest_raw.get("reward_claimed", False)),
             )
 

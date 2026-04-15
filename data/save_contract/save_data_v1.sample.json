@@ -43,7 +43,10 @@
       "objective_progress": [
         1
       ],
-      "reward_claimed": false
+      "reward_claimed": false,
+      "objective_item_progress": [
+        {}
+      ]
     }
   },
   "world_flags": {
