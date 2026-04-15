@@ -4,6 +4,7 @@ from game.crafting.domain.entities import (
     CraftingRecipeDefinition,
     CraftingResult,
     MaterialRequirementStatus,
+    RecipeDiscoveryDefinition,
     RecipeAvailabilityStatus,
     RecipeUnlockConditions,
     RecipeResolution,
@@ -205,3 +206,106 @@ class RecipeUnlockService:
         if recipe.unlock_flags:
             return RecipeUnlockConditions(required_flags=recipe.unlock_flags)
         return RecipeUnlockConditions()
+
+
+class RecipeDiscoveryService:
+    def __init__(self, definitions: tuple[RecipeDiscoveryDefinition, ...], valid_recipe_ids: set[str]) -> None:
+        self._definitions = definitions
+        self._valid_recipe_ids = valid_recipe_ids
+        self._by_source: dict[tuple[str, str], tuple[RecipeDiscoveryDefinition, ...]] = {}
+        self._by_item_id: dict[str, tuple[RecipeDiscoveryDefinition, ...]] = {}
+        self._validate_and_index()
+
+    def discover_by_source(
+        self,
+        *,
+        unlock_source_type: str,
+        source_id: str,
+        discovered_recipe_ids: set[str],
+        discovered_recipe_book_ids: set[str],
+        unlocked_recipe_ids: set[str],
+    ) -> tuple[list[str], list[str], list[str]]:
+        discovered_logs: list[str] = []
+        already_known_logs: list[str] = []
+        warnings: list[str] = []
+        for definition in self._by_source.get((unlock_source_type, source_id), tuple()):
+            logs = self._apply_definition(
+                definition=definition,
+                discovered_recipe_ids=discovered_recipe_ids,
+                discovered_recipe_book_ids=discovered_recipe_book_ids,
+                unlocked_recipe_ids=unlocked_recipe_ids,
+            )
+            discovered_logs.extend(logs[0])
+            already_known_logs.extend(logs[1])
+            warnings.extend(logs[2])
+        return discovered_logs, already_known_logs, warnings
+
+    def discover_from_items(
+        self,
+        *,
+        gained_item_ids: set[str],
+        discovered_recipe_ids: set[str],
+        discovered_recipe_book_ids: set[str],
+        unlocked_recipe_ids: set[str],
+    ) -> tuple[list[str], list[str], list[str]]:
+        discovered_logs: list[str] = []
+        already_known_logs: list[str] = []
+        warnings: list[str] = []
+        for item_id in sorted(gained_item_ids):
+            for definition in self._by_item_id.get(item_id, tuple()):
+                logs = self._apply_definition(
+                    definition=definition,
+                    discovered_recipe_ids=discovered_recipe_ids,
+                    discovered_recipe_book_ids=discovered_recipe_book_ids,
+                    unlocked_recipe_ids=unlocked_recipe_ids,
+                )
+                discovered_logs.extend(logs[0])
+                already_known_logs.extend(logs[1])
+                warnings.extend(logs[2])
+        return discovered_logs, already_known_logs, warnings
+
+    def _apply_definition(
+        self,
+        *,
+        definition: RecipeDiscoveryDefinition,
+        discovered_recipe_ids: set[str],
+        discovered_recipe_book_ids: set[str],
+        unlocked_recipe_ids: set[str],
+    ) -> tuple[list[str], list[str], list[str]]:
+        discovered_logs: list[str] = []
+        already_known_logs: list[str] = []
+        warnings: list[str] = []
+
+        if definition.recipe_book_id:
+            if definition.recipe_book_id in discovered_recipe_book_ids:
+                already_known_logs.append(f"recipe_book_already_known:{definition.recipe_book_id}")
+            else:
+                discovered_recipe_book_ids.add(definition.recipe_book_id)
+                discovered_logs.append(f"recipe_book_discovered:{definition.recipe_book_id}")
+
+        for recipe_id in definition.recipe_ids:
+            if recipe_id not in self._valid_recipe_ids:
+                warnings.append(f"recipe_discovery_invalid_recipe_id:{recipe_id}")
+                continue
+            if recipe_id in discovered_recipe_ids:
+                already_known_logs.append(f"recipe_already_known:{recipe_id}")
+                continue
+            discovered_recipe_ids.add(recipe_id)
+            unlocked_recipe_ids.add(recipe_id)
+            message = definition.unlock_message or f"recipe_discovered:{recipe_id}"
+            discovered_logs.append(f"recipe_discovered:{recipe_id}:{message}")
+        return discovered_logs, already_known_logs, warnings
+
+    def _validate_and_index(self) -> None:
+        for definition in self._definitions:
+            if not definition.source_id:
+                raise ValueError("recipe discovery source_id is required")
+            if not definition.recipe_ids:
+                raise ValueError(f"recipe discovery recipe_ids is required source={definition.source_id}")
+            for recipe_id in definition.recipe_ids:
+                if recipe_id not in self._valid_recipe_ids:
+                    raise ValueError(f"recipe discovery has unknown recipe_id={recipe_id}")
+            source_key = (definition.unlock_source_type, definition.source_id)
+            self._by_source[source_key] = self._by_source.get(source_key, tuple()) + (definition,)
+            if definition.unlock_source_type == "loot_item":
+                self._by_item_id[definition.source_id] = self._by_item_id.get(definition.source_id, tuple()) + (definition,)

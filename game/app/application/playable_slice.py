@@ -13,7 +13,7 @@ from game.app.application.dialogue_event_service import DialogueService, Locatio
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
-from game.crafting.domain.services import CraftingService, RecipeUnlockService
+from game.crafting.domain.services import CraftingService, RecipeDiscoveryService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
 from game.gathering.domain.services import GatheringRespawnService, GatheringService
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
@@ -88,6 +88,11 @@ class PlayableSliceApplication:
             valid_item_ids=set(self._item_definitions),
             valid_equipment_ids=set(self._equipment_definitions),
         )
+        self._recipe_discovery_service = RecipeDiscoveryService(
+            self._crafting_repo.load_recipe_discoveries(),
+            valid_recipe_ids=set(self._crafting_recipes),
+        )
+        self._workshop_npc_ids = self._crafting_repo.load_workshop_npc_ids()
         self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
@@ -113,6 +118,8 @@ class PlayableSliceApplication:
         self.completed_location_event_ids: set[str] = set()
         self.gathered_node_ids: set[str] = set()
         self.unlocked_recipe_ids: set[str] = set()
+        self.discovered_recipe_ids: set[str] = set()
+        self.discovered_recipe_book_ids: set[str] = set()
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -132,6 +139,8 @@ class PlayableSliceApplication:
         self.completed_location_event_ids = set()
         self.gathered_node_ids = set()
         self.unlocked_recipe_ids = set()
+        self.discovered_recipe_ids = set()
+        self.discovered_recipe_book_ids = set()
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self._evaluate_recipe_unlocks()
         self.last_event_id = "event.system.new_game_intro"
@@ -167,6 +176,8 @@ class PlayableSliceApplication:
         self.gathered_node_ids = self._restore_gathered_node_ids(gathering_meta)
         crafting_meta = save_data.meta.get("crafting_state", {})
         self.unlocked_recipe_ids = set(crafting_meta.get("unlocked_recipe_ids", []))
+        self.discovered_recipe_ids = set(crafting_meta.get("discovered_recipe_ids", []))
+        self.discovered_recipe_book_ids = set(crafting_meta.get("discovered_recipe_book_ids", []))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
@@ -360,6 +371,8 @@ class PlayableSliceApplication:
                 },
                 "crafting_state": {
                     "unlocked_recipe_ids": sorted(self.unlocked_recipe_ids),
+                    "discovered_recipe_ids": sorted(self.discovered_recipe_ids),
+                    "discovered_recipe_book_ids": sorted(self.discovered_recipe_book_ids),
                 },
             },
         )
@@ -444,6 +457,7 @@ class PlayableSliceApplication:
         )
         for item_id, amount in sorted(result.gained_items.items()):
             lines.append(f"gathered_item:{item_id}:x{amount}")
+        lines.extend(self._apply_recipe_discovery_for_items(set(result.gained_items)))
         return lines
 
     def gatherable_node_choices(self) -> list[tuple[str, str]]:
@@ -534,6 +548,9 @@ class PlayableSliceApplication:
             if current_step is None:
                 lines.append(f"dialogue_choice_failed:next_step_not_found:{choice_result.next_step_id}")
                 break
+        lines.extend(self._apply_recipe_discovery("dialogue_event", resolved.matched_entry_id or npc_id))
+        if npc_id in self._workshop_npc_ids:
+            lines.extend(self.workshop_recipe_lines(npc_id))
         return lines
 
     def _run_dialogue_choice_effect(self, action_type: str, params: dict[str, str]) -> list[str]:
@@ -613,13 +630,30 @@ class PlayableSliceApplication:
             ingredients = ",".join(
                 f"{req.item_id}:{req.owned}/{req.required}" for req in resolution.required_materials
             )
+            discovery_state = "発見済み" if recipe_id in self.discovered_recipe_ids else "未発見"
             unlock_state = "解放済み" if status.unlocked else "未解放"
             material_state = "素材充足" if status.can_craft else "素材不足"
             lock_reason = f":lock_reason={status.lock_reason}" if not status.unlocked else ""
             lines.append(
-                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:unlock={unlock_state}:"
+                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:discovery={discovery_state}:unlock={unlock_state}:"
                 f"materials={material_state}:can_craft={status.unlocked and resolution.can_craft}:"
                 f"ingredients={ingredients}:outputs={outputs}{lock_reason}"
+            )
+        return lines
+
+    def workshop_recipe_lines(self, workshop_npc_id: str) -> list[str]:
+        lines = [f"workshop_npc:{workshop_npc_id}:recipe_status"]
+        for recipe_id, recipe in sorted(self._crafting_recipes.items()):
+            discovered = recipe_id in self.discovered_recipe_ids
+            unlocked = recipe_id in self.unlocked_recipe_ids
+            resolution = self._crafting_service.resolve(
+                recipe=recipe,
+                inventory_items=self.inventory_state.get("items", {}),
+            )
+            discovery_state = "発見済み" if discovered else "未発見"
+            craft_state = "作成可能" if unlocked and resolution.can_craft else "素材不足"
+            lines.append(
+                f"workshop_recipe:{recipe_id}:{recipe.name}:discovery={discovery_state}:unlocked={unlocked}:craft={craft_state}"
             )
         return lines
 
@@ -804,13 +838,9 @@ class PlayableSliceApplication:
         if battle_result.player_won:
             battle_reward = self._battle_rewards.get(encounter_id)
             if battle_reward is not None:
-                logs.extend(
-                    self._reward_service.apply(
-                        battle_reward.rewards_on_win,
-                        self.party_members,
-                        self.inventory_state,
-                    )
-                )
+                gained_item_ids = {item.item_id for item in battle_reward.rewards_on_win.items if item.amount > 0}
+                logs.extend(self._reward_service.apply(battle_reward.rewards_on_win, self.party_members, self.inventory_state))
+                logs.extend(self._apply_recipe_discovery_for_items(gained_item_ids))
         for state in self.quest_session.quest_states.values():
             before = state.status
             self.quest_session.quest_service.apply_battle_result(state, battle_result)
@@ -890,6 +920,9 @@ class PlayableSliceApplication:
             logs.extend(f"location_unlocked:{location_id}" for location_id in unlocked)
             logs.extend(self._evaluate_recipe_unlocks())
             return logs
+        if action_type == "unlock_recipe":
+            source_id = params.get("source_id") or params.get("event_id") or "dialogue_choice"
+            return self._apply_recipe_discovery("dialogue_event", source_id)
         if action_type == "accept_quest":
             return self.accept_quest(params["quest_id"])
         if action_type == "start_battle":
@@ -911,6 +944,7 @@ class PlayableSliceApplication:
             recipe = self._crafting_recipes[recipe_id]
             unlock_message = recipe.unlock_message or f"recipe_unlocked:{recipe_id}"
             logs.append(f"recipe_unlocked:{recipe_id}:{unlock_message}")
+            self.discovered_recipe_ids.add(recipe_id)
         return logs
 
     def _completed_quest_ids(self) -> set[str]:
@@ -934,6 +968,8 @@ class PlayableSliceApplication:
             battle_reward = self._battle_rewards.get(encounter_id)
             if battle_reward is not None:
                 logs.extend(self._reward_service.apply(battle_reward.rewards_on_win, self.party_members, self.inventory_state))
+                gained_item_ids = {item.item_id for item in battle_reward.rewards_on_win.items if item.amount > 0}
+                logs.extend(self._apply_recipe_discovery_for_items(gained_item_ids))
         for state in self.quest_session.quest_states.values():
             before = state.status
             self.quest_session.quest_service.apply_battle_result(state, battle_result)
@@ -1091,6 +1127,9 @@ class PlayableSliceApplication:
                 self.inventory_state,
             )
         )
+        gained_item_ids = {item_id for item_id, amount in quest_reward.items if amount > 0}
+        logs.extend(self._apply_recipe_discovery_for_items(gained_item_ids))
+        logs.extend(self._apply_recipe_discovery("quest_complete", quest_id))
         if quest_reward.completion_flag:
             self.quest_session.world_flags.add(quest_reward.completion_flag)
             logs.append(f"flag_set:{quest_reward.completion_flag}")
@@ -1101,3 +1140,24 @@ class PlayableSliceApplication:
             logs.append(f"quest_repeat_ready:manual_reaccept:{quest_id}")
         self.last_event_id = f"event.system.quest_report:{quest_id}"
         return logs
+
+    def _apply_recipe_discovery(self, unlock_source_type: str, source_id: str) -> list[str]:
+        discovered, already_known, warnings = self._recipe_discovery_service.discover_by_source(
+            unlock_source_type=unlock_source_type,
+            source_id=source_id,
+            discovered_recipe_ids=self.discovered_recipe_ids,
+            discovered_recipe_book_ids=self.discovered_recipe_book_ids,
+            unlocked_recipe_ids=self.unlocked_recipe_ids,
+        )
+        return [*discovered, *already_known, *warnings]
+
+    def _apply_recipe_discovery_for_items(self, gained_item_ids: set[str]) -> list[str]:
+        if not gained_item_ids:
+            return []
+        discovered, already_known, warnings = self._recipe_discovery_service.discover_from_items(
+            gained_item_ids=gained_item_ids,
+            discovered_recipe_ids=self.discovered_recipe_ids,
+            discovered_recipe_book_ids=self.discovered_recipe_book_ids,
+            unlocked_recipe_ids=self.unlocked_recipe_ids,
+        )
+        return [*discovered, *already_known, *warnings]

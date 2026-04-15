@@ -90,6 +90,13 @@
       "unlocked_recipe_ids": [
         "recipe.craft.memory_tonic",
         "recipe.craft.memory_edge"
+      ],
+      "discovered_recipe_ids": [
+        "recipe.craft.memory_tonic",
+        "recipe.craft.memory_edge"
+      ],
+      "discovered_recipe_book_ids": [
+        "recipe_book.astel.tidal_tonic_notes"
       ]
     }
   }
