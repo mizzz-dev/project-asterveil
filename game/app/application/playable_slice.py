@@ -13,7 +13,7 @@ from game.app.application.dialogue_event_service import DialogueService, Locatio
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
-from game.crafting.domain.services import CraftingService
+from game.crafting.domain.services import CraftingService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
 from game.gathering.domain.services import GatheringService
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
@@ -83,6 +83,7 @@ class PlayableSliceApplication:
         self._status_effect_definitions = self._app_master_repo.load_status_effects()
         self._equipment_definitions = self._app_master_repo.load_equipment()
         self._crafting_service = CraftingService()
+        self._recipe_unlock_service = RecipeUnlockService()
         self._crafting_recipes = self._crafting_repo.load_recipes(
             valid_item_ids=set(self._item_definitions),
             valid_equipment_ids=set(self._equipment_definitions),
@@ -110,6 +111,7 @@ class PlayableSliceApplication:
         self.inventory_state: dict = {}
         self.completed_location_event_ids: set[str] = set()
         self.gathered_node_ids: set[str] = set()
+        self.unlocked_recipe_ids: set[str] = set()
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -128,7 +130,9 @@ class PlayableSliceApplication:
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
         self.completed_location_event_ids = set()
         self.gathered_node_ids = set()
+        self.unlocked_recipe_ids = set()
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
+        self._evaluate_recipe_unlocks()
         self.last_event_id = "event.system.new_game_intro"
 
         return [
@@ -160,9 +164,12 @@ class PlayableSliceApplication:
         self.completed_location_event_ids = set(event_meta.get("completed_location_event_ids", []))
         gathering_meta = save_data.meta.get("gathering_state", {})
         self.gathered_node_ids = set(gathering_meta.get("gathered_node_ids", []))
+        crafting_meta = save_data.meta.get("crafting_state", {})
+        self.unlocked_recipe_ids = set(crafting_meta.get("unlocked_recipe_ids", []))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
+        self._evaluate_recipe_unlocks()
         return True, "セーブデータをロードしました。"
 
     def available_actions(self) -> list[ActionItem]:
@@ -308,6 +315,7 @@ class PlayableSliceApplication:
             logs.append(f"flag_set:{quest_reward.completion_flag}")
         for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
             logs.append(f"location_unlocked:{unlocked}")
+        logs.extend(self._evaluate_recipe_unlocks())
         self.last_event_id = f"event.system.quest_report:{quest_id}"
         return logs
 
@@ -332,6 +340,9 @@ class PlayableSliceApplication:
                 },
                 "gathering_state": {
                     "gathered_node_ids": sorted(self.gathered_node_ids),
+                },
+                "crafting_state": {
+                    "unlocked_recipe_ids": sorted(self.unlocked_recipe_ids),
                 },
             },
         )
@@ -486,6 +497,7 @@ class PlayableSliceApplication:
             for flag_id in choice_result.set_flags:
                 self.quest_session.world_flags.add(flag_id)
                 lines.append(f"flag_set:{flag_id}")
+            lines.extend(self._evaluate_recipe_unlocks())
             should_end = False
             for effect in choice_result.effects:
                 effect_logs = self._run_dialogue_choice_effect(effect.action_type, effect.params)
@@ -508,7 +520,9 @@ class PlayableSliceApplication:
         if action_type == "set_flag":
             flag_id = params["flag_id"]
             self.quest_session.world_flags.add(flag_id)
-            return [f"flag_set:{flag_id}"]
+            logs = [f"flag_set:{flag_id}"]
+            logs.extend(self._evaluate_recipe_unlocks())
+            return logs
         if action_type == "accept_quest":
             return self.accept_quest(params["quest_id"])
         if action_type == "start_battle":
@@ -553,15 +567,30 @@ class PlayableSliceApplication:
     def crafting_recipe_lines(self) -> list[str]:
         lines = ["crafting:recipes"]
         inventory_items = self.inventory_state.get("items", {})
-        for recipe_id, recipe in sorted(self._crafting_recipes.items()):
+        statuses = self._recipe_unlock_service.build_availability(
+            recipes=self._crafting_recipes,
+            unlocked_recipe_ids=self.unlocked_recipe_ids,
+            world_flags=self.quest_session.world_flags if self.quest_session else set(),
+            completed_quest_ids=self._completed_quest_ids(),
+            current_location_id=self.location_state.current_location_id,
+            crafting_service=self._crafting_service,
+            inventory_items=inventory_items,
+        )
+        for status in statuses:
+            recipe_id = status.recipe_id
+            recipe = self._crafting_recipes[recipe_id]
             resolution = self._crafting_service.resolve(recipe=recipe, inventory_items=inventory_items)
             outputs = ",".join(f"{item_id}x{amount}" for item_id, amount in sorted(resolution.aggregated_outputs.items()))
             ingredients = ",".join(
                 f"{req.item_id}:{req.owned}/{req.required}" for req in resolution.required_materials
             )
+            unlock_state = "解放済み" if status.unlocked else "未解放"
+            material_state = "素材充足" if status.can_craft else "素材不足"
+            lock_reason = f":lock_reason={status.lock_reason}" if not status.unlocked else ""
             lines.append(
-                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:can_craft={resolution.can_craft}:"
-                f"ingredients={ingredients}:outputs={outputs}"
+                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:unlock={unlock_state}:"
+                f"materials={material_state}:can_craft={status.unlocked and resolution.can_craft}:"
+                f"ingredients={ingredients}:outputs={outputs}{lock_reason}"
             )
         return lines
 
@@ -569,6 +598,8 @@ class PlayableSliceApplication:
         recipe = self._crafting_recipes.get(recipe_id)
         if recipe is None:
             return [f"craft_failed:recipe_not_found:{recipe_id}"]
+        if recipe_id not in self.unlocked_recipe_ids:
+            return [f"craft_failed:recipe_locked:{recipe_id}"]
         result = self._crafting_service.craft(recipe=recipe, inventory_state=self.inventory_state, count=count)
         lines = [result.message]
         if not result.success:
@@ -792,12 +823,39 @@ class PlayableSliceApplication:
             unlocked = self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
             logs = [f"flag_set:{flag_id}"]
             logs.extend(f"location_unlocked:{location_id}" for location_id in unlocked)
+            logs.extend(self._evaluate_recipe_unlocks())
             return logs
         if action_type == "accept_quest":
             return self.accept_quest(params["quest_id"])
         if action_type == "start_battle":
             return self._run_event_battle(params["encounter_id"])
         return [f"location_event_action_skipped:unsupported:{action_type}"]
+
+    def _evaluate_recipe_unlocks(self) -> list[str]:
+        if self.quest_session is None:
+            return []
+        unlocked_recipe_ids = self._recipe_unlock_service.evaluate_and_apply_unlocks(
+            recipes=self._crafting_recipes,
+            unlocked_recipe_ids=self.unlocked_recipe_ids,
+            world_flags=self.quest_session.world_flags,
+            completed_quest_ids=self._completed_quest_ids(),
+            current_location_id=self.location_state.current_location_id,
+        )
+        logs: list[str] = []
+        for recipe_id in unlocked_recipe_ids:
+            recipe = self._crafting_recipes[recipe_id]
+            unlock_message = recipe.unlock_message or f"recipe_unlocked:{recipe_id}"
+            logs.append(f"recipe_unlocked:{recipe_id}:{unlock_message}")
+        return logs
+
+    def _completed_quest_ids(self) -> set[str]:
+        if self.quest_session is None:
+            return set()
+        return {
+            quest_id
+            for quest_id, state in self.quest_session.quest_states.items()
+            if state.status == QuestStatus.COMPLETED
+        }
 
     def _run_event_battle(self, encounter_id: str) -> list[str]:
         if self.quest_session is None:

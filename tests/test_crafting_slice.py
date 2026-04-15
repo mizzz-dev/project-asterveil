@@ -6,7 +6,7 @@ from pathlib import Path
 
 from game.app.application.playable_slice import PlayableSliceApplication
 from game.crafting.domain.entities import CraftingIngredient, CraftingOutput, CraftingRecipeDefinition
-from game.crafting.domain.services import CraftingService
+from game.crafting.domain.services import CraftingService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
 from game.quest.domain.entities import BattleResult
 
@@ -34,12 +34,67 @@ class CraftingSliceTests(unittest.TestCase):
                 "item.material.iron_fragment",
                 "item.consumable.antidote_leaf",
                 "item.consumable.memory_tonic",
+                "item.consumable.focus_drop",
                 "equip.weapon.memory_edge",
             },
             valid_equipment_ids={"equip.weapon.memory_edge"},
         )
         self.assertIn("recipe.craft.memory_tonic", recipes)
         self.assertIn("recipe.craft.memory_edge", recipes)
+        self.assertIn("recipe.craft.herbal_focus_drop", recipes)
+        self.assertEqual(recipes["recipe.craft.memory_edge"].unlock_conditions.required_completed_quest_ids, ("quest.ch01.missing_port_record",))
+        self.assertEqual(recipes["recipe.craft.herbal_focus_drop"].unlock_conditions.required_flags, ("flag.helped_npc",))
+
+    def test_recipe_unlock_service_by_quest_and_flag(self) -> None:
+        repo = CraftingMasterDataRepository(Path("data/master"))
+        recipes = repo.load_recipes(
+            valid_item_ids={
+                "item.material.memory_shard",
+                "item.material.iron_fragment",
+                "item.consumable.antidote_leaf",
+                "item.consumable.memory_tonic",
+                "item.consumable.focus_drop",
+            },
+            valid_equipment_ids={"equip.weapon.memory_edge"},
+        )
+        unlock_service = RecipeUnlockService()
+        unlocked_recipe_ids: set[str] = set()
+
+        first = unlock_service.evaluate_and_apply_unlocks(
+            recipes=recipes,
+            unlocked_recipe_ids=unlocked_recipe_ids,
+            world_flags=set(),
+            completed_quest_ids=set(),
+            current_location_id="location.town.astel",
+        )
+        self.assertEqual(first, ["recipe.craft.memory_tonic"])
+
+        second = unlock_service.evaluate_and_apply_unlocks(
+            recipes=recipes,
+            unlocked_recipe_ids=unlocked_recipe_ids,
+            world_flags=set(),
+            completed_quest_ids={"quest.ch01.missing_port_record"},
+            current_location_id="location.town.astel",
+        )
+        self.assertEqual(second, ["recipe.craft.memory_edge"])
+
+        third = unlock_service.evaluate_and_apply_unlocks(
+            recipes=recipes,
+            unlocked_recipe_ids=unlocked_recipe_ids,
+            world_flags={"flag.helped_npc"},
+            completed_quest_ids={"quest.ch01.missing_port_record"},
+            current_location_id="location.town.astel",
+        )
+        self.assertEqual(third, ["recipe.craft.herbal_focus_drop"])
+
+        duplicate = unlock_service.evaluate_and_apply_unlocks(
+            recipes=recipes,
+            unlocked_recipe_ids=unlocked_recipe_ids,
+            world_flags={"flag.helped_npc"},
+            completed_quest_ids={"quest.ch01.missing_port_record"},
+            current_location_id="location.town.astel",
+        )
+        self.assertEqual(duplicate, [])
 
     def test_crafting_service_success_and_missing(self) -> None:
         recipe = CraftingRecipeDefinition(
@@ -74,10 +129,19 @@ class CraftingSliceTests(unittest.TestCase):
             app.new_game()
             app.inventory_state["items"]["item.material.memory_shard"] = 3
             app.buy_item("item.material.iron_fragment")
+            dialogue_logs = app.talk_to_npc("npc.astel.elder", choice_selector=lambda _, __: "choice.help")
+            self.assertIn("recipe_unlocked:recipe.craft.herbal_focus_drop:長老の助言で集中雫の応用調合を習得した。", dialogue_logs)
 
             recipe_lines = app.crafting_recipe_lines()
-            self.assertTrue(any(line.startswith("craft_recipe:recipe.craft.memory_tonic") for line in recipe_lines))
-            self.assertTrue(any(line.startswith("craft_recipe:recipe.craft.memory_edge") for line in recipe_lines))
+            self.assertTrue(any("craft_recipe:recipe.craft.memory_tonic" in line and "unlock=解放済み" in line for line in recipe_lines))
+            self.assertTrue(any("craft_recipe:recipe.craft.memory_edge" in line and "unlock=未解放" in line for line in recipe_lines))
+            self.assertEqual(app.craft_recipe("recipe.craft.memory_edge"), ["craft_failed:recipe_locked:recipe.craft.memory_edge"])
+
+            app.accept_quest("quest.ch01.missing_port_record")
+            app.travel_to("location.field.tidal_flats")
+            app.perform_action("hunt")
+            report_logs = app.perform_action("report")
+            self.assertIn("recipe_unlocked:recipe.craft.memory_edge:港の依頼達成で鍛造図面が解放された。", report_logs)
 
             tonic_logs = app.craft_recipe("recipe.craft.memory_tonic")
             self.assertIn("crafted:recipe.craft.memory_tonic", tonic_logs)
@@ -101,6 +165,7 @@ class CraftingSliceTests(unittest.TestCase):
             resumed.continue_game()
             self.assertEqual(resumed.inventory_state["items"].get("item.consumable.memory_tonic", 0), 0)
             self.assertEqual(resumed.party_members[0].equipped["weapon"], "equip.weapon.memory_edge")
+            self.assertIn("recipe.craft.herbal_focus_drop", resumed.unlocked_recipe_ids)
 
 
 if __name__ == "__main__":

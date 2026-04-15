@@ -19,7 +19,13 @@
         "quantity": 1
       }
     ],
-    "description": "記憶片を薬草と調合し、高い回復効果を持つ薬を作る。"
+    "description": "記憶片を薬草と調合し、高い回復効果を持つ薬を作る。",
+    "unlock_conditions": {
+      "required_flags": [],
+      "required_completed_quest_ids": []
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "基礎調合のレシピを思い出した。"
   },
   {
     "recipe_id": "recipe.craft.memory_edge",
@@ -41,6 +47,42 @@
         "quantity": 1
       }
     ],
-    "description": "記憶片と鉄片を鍛え、攻撃性能の高い剣を作る。"
+    "description": "記憶片と鉄片を鍛え、攻撃性能の高い剣を作る。",
+    "unlock_conditions": {
+      "required_completed_quest_ids": [
+        "quest.ch01.missing_port_record"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "港の依頼達成で鍛造図面が解放された。"
+  },
+  {
+    "recipe_id": "recipe.craft.herbal_focus_drop",
+    "name": "集中雫の応用調合",
+    "category": "consumable",
+    "ingredients": [
+      {
+        "item_id": "item.material.memory_shard",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "item_id": "item.consumable.focus_drop",
+        "quantity": 1
+      }
+    ],
+    "description": "助力を選んだときに伝授される応用調合。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.helped_npc"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "長老の助言で集中雫の応用調合を習得した。"
   }
 ]

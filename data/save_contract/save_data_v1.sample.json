@@ -81,6 +81,12 @@
         "node.herb.astel_backyard_01",
         "node.ore.tidal_flats_01"
       ]
+    },
+    "crafting_state": {
+      "unlocked_recipe_ids": [
+        "recipe.craft.memory_tonic",
+        "recipe.craft.memory_edge"
+      ]
     }
   }
 }
