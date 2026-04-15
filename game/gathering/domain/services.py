@@ -42,6 +42,8 @@ class GatheringService:
                     can_gather=can_gather,
                     reason_code=reason_code,
                     is_gathered=node.node_id in gathered_node_ids,
+                    respawn_rule=node.respawn_rule,
+                    respawn_description=node.respawn_description,
                 )
             )
         return result
@@ -120,3 +122,31 @@ class GatheringService:
             node_id=node.node_id,
             gained_items=gained_items,
         )
+
+
+class GatheringRespawnService:
+    SUPPORTED_RULES = {"none", "on_rest", "on_return_to_hub"}
+    SUPPORTED_TRIGGERS = {"on_rest", "on_return_to_hub"}
+
+    def respawn_by_trigger(
+        self,
+        *,
+        trigger: str,
+        nodes: dict[str, GatheringNodeDefinition],
+        gathered_node_ids: set[str],
+    ) -> list[str]:
+        if trigger not in self.SUPPORTED_TRIGGERS:
+            raise ValueError(f"unsupported respawn trigger={trigger}")
+
+        respawned: list[str] = []
+        for node_id in sorted(gathered_node_ids):
+            node = nodes.get(node_id)
+            if node is None:
+                raise ValueError(f"gathering node not found for gathered state node_id={node_id}")
+            if node.respawn_rule != trigger:
+                continue
+            respawned.append(node_id)
+
+        for node_id in respawned:
+            gathered_node_ids.discard(node_id)
+        return respawned

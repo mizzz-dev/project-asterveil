@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from game.app.application.playable_slice import PlayableSliceApplication
-from game.gathering.domain.services import GatheringService
+from game.gathering.domain.services import GatheringRespawnService, GatheringService
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
 from game.quest.domain.entities import BattleResult
 
@@ -43,6 +43,9 @@ class GatheringSliceTests(unittest.TestCase):
         self.assertGreaterEqual(len(nodes), 3)
         self.assertIn("node.herb.astel_backyard_01", nodes)
         self.assertIn("node.ore.tidal_flats_01", nodes)
+        self.assertEqual(nodes["node.herb.astel_backyard_01"].respawn_rule, "on_rest")
+        self.assertEqual(nodes["node.ore.tidal_flats_01"].respawn_rule, "on_return_to_hub")
+        self.assertEqual(nodes["node.salvage.sunken_storehouse_01"].respawn_rule, "none")
 
     def test_location_dependent_listing_and_gathering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -86,6 +89,111 @@ class GatheringSliceTests(unittest.TestCase):
             self.assertIn("node.herb.astel_backyard_01", resumed.gathered_node_ids)
             self.assertIn("node.salvage.sunken_storehouse_01", resumed.gathered_node_ids)
             self.assertGreaterEqual(resumed.inventory_state["items"].get("item.consumable.memory_tonic", 0), 1)
+
+    def test_on_rest_and_on_return_to_hub_respawn_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["gold"] = 500
+
+            app.gather_from_node("node.herb.astel_backyard_01")
+            self.assertEqual(
+                app.gather_from_node("node.herb.astel_backyard_01"),
+                ["gather_failed:already_gathered:node.herb.astel_backyard_01"],
+            )
+
+            stay_logs = app.stay_at_inn()
+            self.assertIn("gathering_respawned:on_rest:count=1", stay_logs)
+            self.assertIn(
+                "gathering_respawned_node:on_rest:node.herb.astel_backyard_01",
+                stay_logs,
+            )
+            self.assertTrue(
+                app.gather_from_node("node.herb.astel_backyard_01")[0].startswith(
+                    "gathered:node.herb.astel_backyard_01"
+                )
+            )
+
+            app.accept_quest("quest.ch01.missing_port_record")
+            app.travel_to("location.field.tidal_flats")
+            app.gather_from_node("node.ore.tidal_flats_01")
+            self.assertEqual(
+                app.gather_from_node("node.ore.tidal_flats_01"),
+                ["gather_failed:already_gathered:node.ore.tidal_flats_01"],
+            )
+            return_logs = app.travel_to("location.town.astel")
+            self.assertIn("travel_succeeded:location.town.astel", return_logs)
+            self.assertIn("gathering_respawned:on_return_to_hub:count=1", return_logs)
+            app.travel_to("location.field.tidal_flats")
+            self.assertTrue(
+                app.gather_from_node("node.ore.tidal_flats_01")[0].startswith(
+                    "gathered:node.ore.tidal_flats_01"
+                )
+            )
+
+    def test_respawn_rule_none_is_not_respawned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["gold"] = 500
+            app.quest_session.world_flags.add("flag.ch01.port_record_restored")
+            app._travel_service.evaluate_unlocks(app.location_state, app.quest_session.world_flags)
+
+            app.travel_to("location.dungeon.sunken_storehouse")
+            app.gather_from_node("node.salvage.sunken_storehouse_01")
+            app.travel_to("location.town.astel")
+            stay_logs = app.stay_at_inn()
+            self.assertIn("gathering_respawned:on_rest:count=0", stay_logs)
+            return_logs = app.travel_to("location.dungeon.sunken_storehouse")
+            self.assertIn("travel_succeeded:location.dungeon.sunken_storehouse", return_logs)
+
+            not_respawned = app.gather_from_node("node.salvage.sunken_storehouse_01")
+            self.assertEqual(
+                not_respawned,
+                ["gather_failed:already_gathered:node.salvage.sunken_storehouse_01"],
+            )
+
+    def test_gathering_state_keeps_respawned_nodes_after_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["gold"] = 500
+            app.gather_from_node("node.herb.astel_backyard_01")
+            app.stay_at_inn()
+            app.perform_action("save")
+
+            resumed = self._build_app(tmp_dir)
+            ok, _ = resumed.continue_game()
+            self.assertTrue(ok)
+            self.assertNotIn("node.herb.astel_backyard_01", resumed.gathered_node_ids)
+            self.assertTrue(
+                resumed.gather_from_node("node.herb.astel_backyard_01")[0].startswith(
+                    "gathered:node.herb.astel_backyard_01"
+                )
+            )
+
+    def test_respawn_service_detects_unknown_gathered_node_id(self) -> None:
+        repo = GatheringNodeMasterDataRepository(Path("data/master"))
+        nodes = repo.load_nodes(
+            valid_item_ids={
+                "item.consumable.antidote_leaf",
+                "item.material.memory_shard",
+                "item.material.iron_fragment",
+            },
+            valid_location_ids={
+                "location.town.astel",
+                "location.field.tidal_flats",
+                "location.dungeon.sunken_storehouse",
+                "location.dungeon.tidegate_ruins",
+            },
+        )
+        service = GatheringRespawnService()
+        with self.assertRaisesRegex(ValueError, "gathering node not found"):
+            service.respawn_by_trigger(
+                trigger="on_rest",
+                nodes=nodes,
+                gathered_node_ids={"node.unknown"},
+            )
 
     def test_resolve_and_inventory_apply_are_separated(self) -> None:
         repo = GatheringNodeMasterDataRepository(Path("data/master"))
