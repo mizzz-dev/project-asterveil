@@ -5,6 +5,22 @@ from dataclasses import dataclass
 from .entities import BattleResult, QuestBoardStatus, QuestDefinition, QuestState, QuestStatus
 
 
+@dataclass(frozen=True)
+class TurnInItemPlan:
+    objective_id: str
+    item_id: str
+    required: int
+    submitted_before: int
+    submit_now: int
+
+
+@dataclass(frozen=True)
+class TurnInPlan:
+    success: bool
+    code: str
+    item_plans: tuple[TurnInItemPlan, ...] = tuple()
+
+
 @dataclass
 class QuestProgressService:
     definitions: dict[str, QuestDefinition]
@@ -12,7 +28,16 @@ class QuestProgressService:
     def create_initial_state(self, quest_id: str) -> QuestState:
         definition = self._get_definition(quest_id)
         progress = {objective.id: 0 for objective in definition.objectives}
-        return QuestState(quest_id=quest_id, objective_progress=progress)
+        objective_item_progress = {
+            objective.id: {item_id: 0 for item_id, _ in objective.required_items}
+            for objective in definition.objectives
+            if objective.objective_type == "turn_in_items"
+        }
+        return QuestState(
+            quest_id=quest_id,
+            objective_progress=progress,
+            objective_item_progress=objective_item_progress,
+        )
 
     def accept(self, state: QuestState) -> QuestState:
         if state.status == QuestStatus.NOT_ACCEPTED:
@@ -38,6 +63,105 @@ class QuestProgressService:
         if self.is_objectives_completed(state):
             state.status = QuestStatus.READY_TO_COMPLETE
         return state
+
+    def build_turn_in_plan(self, state: QuestState, inventory_items: dict[str, int]) -> TurnInPlan:
+        if state.status != QuestStatus.IN_PROGRESS:
+            return TurnInPlan(success=False, code="turn_in_failed:quest_not_in_progress")
+
+        definition = self._get_definition(state.quest_id)
+        item_plans: list[TurnInItemPlan] = []
+        has_turn_in_objective = False
+
+        for objective in definition.objectives:
+            if objective.objective_type != "turn_in_items":
+                continue
+            has_turn_in_objective = True
+            item_progress = state.objective_item_progress.setdefault(
+                objective.id,
+                {item_id: 0 for item_id, _ in objective.required_items},
+            )
+            objective_pending: list[TurnInItemPlan] = []
+            objective_must_block = False
+            for item_id, required in objective.required_items:
+                submitted_before = int(item_progress.get(item_id, 0))
+                remain = max(0, required - submitted_before)
+                if remain <= 0:
+                    continue
+                owned = int(inventory_items.get(item_id, 0))
+                submit_now = min(remain, owned)
+                if submit_now <= 0:
+                    if not objective.allow_partial_turn_in:
+                        objective_must_block = True
+                    continue
+                objective_pending.append(
+                    TurnInItemPlan(
+                        objective_id=objective.id,
+                        item_id=item_id,
+                        required=required,
+                        submitted_before=submitted_before,
+                        submit_now=submit_now,
+                    )
+                )
+                if submit_now < remain and not objective.allow_partial_turn_in:
+                    objective_must_block = True
+            if objective_must_block:
+                return TurnInPlan(success=False, code="turn_in_failed:insufficient_items")
+            item_plans.extend(objective_pending)
+
+        if not has_turn_in_objective:
+            return TurnInPlan(success=False, code="turn_in_failed:no_turn_in_objective")
+        if not item_plans:
+            return TurnInPlan(success=False, code="turn_in_failed:no_items_to_turn_in")
+        return TurnInPlan(success=True, code="turn_in_ready", item_plans=tuple(item_plans))
+
+    def consume_turn_in_items(self, inventory_state: dict, turn_in_plan: TurnInPlan) -> None:
+        if not turn_in_plan.success:
+            raise ValueError(f"cannot consume turn-in items: {turn_in_plan.code}")
+        items = inventory_state.setdefault("items", {})
+        for plan in turn_in_plan.item_plans:
+            owned = int(items.get(plan.item_id, 0))
+            if owned < plan.submit_now:
+                raise ValueError(f"turn-in item insufficient at consume: {plan.item_id}")
+            remaining = owned - plan.submit_now
+            if remaining > 0:
+                items[plan.item_id] = remaining
+            else:
+                items.pop(plan.item_id, None)
+
+    def apply_turn_in_progress(self, state: QuestState, turn_in_plan: TurnInPlan) -> list[str]:
+        if not turn_in_plan.success:
+            return [turn_in_plan.code]
+
+        logs: list[str] = []
+        definition = self._get_definition(state.quest_id)
+        touched_objectives: set[str] = set()
+        for plan in turn_in_plan.item_plans:
+            objective_progress = state.objective_item_progress.setdefault(plan.objective_id, {})
+            submitted_after = plan.submitted_before + plan.submit_now
+            objective_progress[plan.item_id] = submitted_after
+            logs.append(
+                f"turn_in_success:{state.quest_id}:{plan.objective_id}:{plan.item_id}:"
+                f"submitted={submitted_after}/{plan.required}:delta={plan.submit_now}"
+            )
+            touched_objectives.add(plan.objective_id)
+
+        for objective in definition.objectives:
+            if objective.objective_type != "turn_in_items":
+                continue
+            objective_progress = state.objective_item_progress.get(objective.id, {})
+            total_required = sum(required for _, required in objective.required_items)
+            total_submitted = sum(
+                min(required, int(objective_progress.get(item_id, 0)))
+                for item_id, required in objective.required_items
+            )
+            state.objective_progress[objective.id] = total_submitted
+            if objective.id in touched_objectives and total_submitted >= total_required:
+                logs.append(f"quest_objective_completed:{state.quest_id}:{objective.id}")
+
+        if self.is_objectives_completed(state):
+            state.status = QuestStatus.READY_TO_COMPLETE
+            logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
+        return logs
 
     def complete(self, state: QuestState) -> QuestState:
         if state.status != QuestStatus.READY_TO_COMPLETE:

@@ -379,6 +379,56 @@ class PlayableSliceTests(unittest.TestCase):
                 any("quest.ch01.harbor_cleanup" in line and "status=in_progress" in line for line in resumed_board)
             )
 
+    def test_turn_in_from_gathering_item_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.inventory_state["items"]["item.consumable.antidote_leaf"] = 0
+            app.accept_quest("quest.ch01.herb_supply_turn_in")
+
+            first = app.turn_in_quest_items("quest.ch01.herb_supply_turn_in")
+            self.assertEqual(first, ["turn_in_failed:insufficient_items"])
+
+            app.gather_from_node("node.herb.astel_backyard_01")
+            talk_logs = app.talk_to_npc(
+                "npc.astel.guard",
+                choice_selector=lambda choices, _step_id: choices[0][0],
+            )
+
+            self.assertTrue(any(line.startswith("turn_in_success:quest.ch01.herb_supply_turn_in") for line in talk_logs))
+            self.assertTrue(any(line.startswith("quest_completed:quest.ch01.herb_supply_turn_in") for line in talk_logs))
+            self.assertEqual(app.quest_state("quest.ch01.herb_supply_turn_in").status, QuestStatus.COMPLETED)
+
+    def test_turn_in_from_loot_item_and_save_load_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.accept_quest("quest.ch01.missing_port_record")
+            app.travel_to("location.field.tidal_flats")
+            app.perform_action("hunt")
+            app.perform_action("report")
+            app.accept_quest("quest.ch01.memory_fragment_delivery")
+            app.travel_to("location.town.astel")
+
+            app.inventory_state["items"]["item.material.memory_shard"] = 1
+            failed_logs = app.turn_in_quest_items("quest.ch01.memory_fragment_delivery")
+            self.assertEqual(failed_logs, ["turn_in_failed:insufficient_items"])
+
+            app.inventory_state["items"]["item.material.memory_shard"] = 2
+            success_logs = app.turn_in_quest_items("quest.ch01.memory_fragment_delivery")
+            self.assertTrue(any(line.startswith("turn_in_success:quest.ch01.memory_fragment_delivery") for line in success_logs))
+            self.assertEqual(app.quest_state("quest.ch01.memory_fragment_delivery").status, QuestStatus.READY_TO_COMPLETE)
+            app.perform_action("save")
+
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            resumed_state = resumed.quest_state("quest.ch01.memory_fragment_delivery")
+            self.assertEqual(resumed_state.status, QuestStatus.READY_TO_COMPLETE)
+            self.assertEqual(
+                resumed_state.objective_item_progress["obj.ch01.turn_in_memory_shard"]["item.material.memory_shard"],
+                2,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

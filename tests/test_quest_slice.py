@@ -108,6 +108,29 @@ class QuestSliceTests(unittest.TestCase):
         self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "available")
         self.assertEqual(entries["quest.ch01.rookie_level_trial"].status.value, "available")
 
+    def test_turn_in_objective_loading_and_progress(self) -> None:
+        quest_id = "quest.ch01.herb_supply_turn_in"
+        definition = self.quest_defs[quest_id]
+        objective = definition.objectives[0]
+        self.assertEqual(objective.objective_type, "turn_in_items")
+        self.assertEqual(objective.required_items, (("item.consumable.antidote_leaf", 1),))
+
+        service = QuestProgressService(self.quest_defs)
+        state = service.accept(service.create_initial_state(quest_id))
+
+        insufficient = service.build_turn_in_plan(state, {"item.consumable.antidote_leaf": 0})
+        self.assertFalse(insufficient.success)
+        self.assertEqual(insufficient.code, "turn_in_failed:insufficient_items")
+
+        inventory_state = {"items": {"item.consumable.antidote_leaf": 2}}
+        plan = service.build_turn_in_plan(state, inventory_state["items"])
+        self.assertTrue(plan.success)
+        service.consume_turn_in_items(inventory_state, plan)
+        logs = service.apply_turn_in_progress(state, plan)
+        self.assertIn("turn_in_success:quest.ch01.herb_supply_turn_in:obj.ch01.turn_in_antidote_leaf:item.consumable.antidote_leaf:submitted=1/1:delta=1", logs)
+        self.assertEqual(inventory_state["items"]["item.consumable.antidote_leaf"], 1)
+        self.assertEqual(state.status, QuestStatus.READY_TO_COMPLETE)
+
 
 if __name__ == "__main__":
     unittest.main()
