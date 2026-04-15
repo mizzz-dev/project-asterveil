@@ -46,6 +46,7 @@ class QuestSaveState:
     objective_progress: list[int]
     objective_item_progress: list[dict[str, int]] = field(default_factory=list)
     reward_claimed: bool = False
+    repeat_ready: bool = False
 
 
 @dataclass
@@ -101,6 +102,7 @@ class SaveData:
                     "objective_progress": state.objective_progress,
                     "objective_item_progress": state.objective_item_progress,
                     "reward_claimed": state.reward_claimed,
+                    "repeat_ready": state.repeat_ready,
                 }
                 for quest_id, state in self.quest_state.items()
             },
@@ -178,6 +180,7 @@ class SaveData:
                     for per_objective in quest_raw.get("objective_item_progress", [])
                 ],
                 reward_claimed=bool(quest_raw.get("reward_claimed", False)),
+                repeat_ready=bool(quest_raw.get("repeat_ready", False)),
             )
 
         profile = PlayerProfileState(
