@@ -29,6 +29,25 @@ class CraftingRecipeDefinition:
     outputs: tuple[CraftingOutput, ...]
     description: str = ""
     unlock_flags: tuple[str, ...] = tuple()
+    unlock_conditions: "RecipeUnlockConditions" | None = None
+    visible_before_unlock: bool = True
+    unlock_message: str = ""
+
+
+@dataclass(frozen=True)
+class RecipeUnlockConditions:
+    required_flags: tuple[str, ...] = tuple()
+    required_completed_quest_ids: tuple[str, ...] = tuple()
+    required_location_ids: tuple[str, ...] = tuple()
+
+
+@dataclass(frozen=True)
+class RecipeAvailabilityStatus:
+    recipe_id: str
+    unlocked: bool
+    can_craft: bool
+    visible: bool
+    lock_reason: str
 
 
 @dataclass(frozen=True)

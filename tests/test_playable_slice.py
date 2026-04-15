@@ -105,6 +105,24 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertEqual(resumed.party_members[0].current_hp, 90)
             self.assertEqual(resumed.inventory_state["items"]["item.consumable.mini_potion"], 2)
 
+    def test_recipe_unlock_state_persists_across_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.accept_quest("quest.ch01.missing_port_record")
+            app.travel_to("location.field.tidal_flats")
+            app.perform_action("hunt")
+            report_logs = app.perform_action("report")
+            self.assertTrue(any(line.startswith("recipe_unlocked:recipe.craft.memory_edge:") for line in report_logs))
+
+            app.perform_action("save")
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+
+            self.assertIn("recipe.craft.memory_edge", resumed.unlocked_recipe_ids)
+            craft_lines = resumed.crafting_recipe_lines()
+            self.assertTrue(any("craft_recipe:recipe.craft.memory_edge" in line and "unlock=解放済み" in line for line in craft_lines))
+
     def test_use_item_updates_hp_sp_and_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             app = self._build_app(tmp_dir)

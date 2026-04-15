@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from game.crafting.domain.entities import CraftingIngredient, CraftingOutput, CraftingRecipeDefinition
+from game.crafting.domain.entities import (
+    CraftingIngredient,
+    CraftingOutput,
+    CraftingRecipeDefinition,
+    RecipeUnlockConditions,
+)
 
 
 class CraftingMasterDataRepository:
@@ -74,6 +79,29 @@ class CraftingMasterDataRepository:
                 outputs=tuple(outputs),
                 description=str(entry.get("description") or ""),
                 unlock_flags=tuple(str(flag_id) for flag_id in entry.get("unlock_flags", [])),
+                unlock_conditions=self._build_unlock_conditions(entry, recipe_id),
+                visible_before_unlock=bool(entry.get("visible_before_unlock", True)),
+                unlock_message=str(entry.get("unlock_message") or ""),
             )
 
         return recipes
+
+    def _build_unlock_conditions(self, entry: dict, recipe_id: str) -> RecipeUnlockConditions:
+        raw_conditions = entry.get("unlock_conditions")
+        if raw_conditions is None:
+            return RecipeUnlockConditions()
+        if not isinstance(raw_conditions, dict):
+            raise ValueError(f"crafting_recipes.sample.json unlock_conditions must be object recipe_id={recipe_id}")
+        for field_name in ("required_flags", "required_completed_quest_ids", "required_location_ids"):
+            value = raw_conditions.get(field_name, [])
+            if not isinstance(value, list):
+                raise ValueError(
+                    f"crafting_recipes.sample.json unlock_conditions.{field_name} must be array recipe_id={recipe_id}"
+                )
+        return RecipeUnlockConditions(
+            required_flags=tuple(str(flag_id) for flag_id in raw_conditions.get("required_flags", [])),
+            required_completed_quest_ids=tuple(
+                str(quest_id) for quest_id in raw_conditions.get("required_completed_quest_ids", [])
+            ),
+            required_location_ids=tuple(str(location_id) for location_id in raw_conditions.get("required_location_ids", [])),
+        )
