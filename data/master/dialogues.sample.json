@@ -468,5 +468,78 @@
     "lines": [
       "記憶片のおかげで記録の補修が進んだ。礼を言う。"
     ]
+  },
+  {
+    "entry_id": "dialogue.workshop.recipe_lesson",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 300,
+    "condition": {
+      "required_flags": [
+        "flag.ch01.port_record_restored"
+      ],
+      "excluded_flags": [
+        "flag.recipe.lesson.tidal_tonic"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.workshop_offer",
+        "speaker": "npc.astel.workshop_master",
+        "line": "港の復旧に付き合ってくれた礼だ。潮香トニックの作り方を教えようか？",
+        "choices": [
+          {
+            "choice_id": "choice.workshop_teach",
+            "text": "教わる",
+            "next_step_id": "step.workshop_taught",
+            "set_flags": [
+              "flag.recipe.lesson.tidal_tonic"
+            ],
+            "effects": [
+              {
+                "action_type": "unlock_recipe",
+                "params": {
+                  "source_id": "dialogue.workshop.recipe_lesson"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.workshop_later",
+            "text": "また今度",
+            "next_step_id": "step.workshop_later",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.workshop_taught",
+        "speaker": "npc.astel.workshop_master",
+        "line": "これで工房メモにも記しておいた。素材があればすぐ作れる。"
+      },
+      {
+        "step_id": "step.workshop_later",
+        "speaker": "npc.astel.workshop_master",
+        "line": "いつでも声をかけな。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.recipe_after_unlock",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 250,
+    "condition": {
+      "required_flags": [
+        "flag.recipe.lesson.tidal_tonic"
+      ]
+    },
+    "lines": [
+      "潮香トニックは鉄片と解毒草で作れる。工房メモを確認してみな。"
+    ]
   }
 ]

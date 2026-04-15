@@ -113,7 +113,7 @@ class PlayableSliceTests(unittest.TestCase):
             app.travel_to("location.field.tidal_flats")
             app.perform_action("hunt")
             report_logs = app.perform_action("report")
-            self.assertTrue(any(line.startswith("recipe_unlocked:recipe.craft.memory_edge:") for line in report_logs))
+            self.assertTrue(any(line.startswith("recipe_discovered:recipe.craft.memory_edge:") for line in report_logs))
 
             app.perform_action("save")
             resumed = self._build_app(tmp_dir)
@@ -122,6 +122,7 @@ class PlayableSliceTests(unittest.TestCase):
             self.assertIn("recipe.craft.memory_edge", resumed.unlocked_recipe_ids)
             craft_lines = resumed.crafting_recipe_lines()
             self.assertTrue(any("craft_recipe:recipe.craft.memory_edge" in line and "unlock=解放済み" in line for line in craft_lines))
+            self.assertIn("recipe.craft.memory_edge", resumed.discovered_recipe_ids)
 
     def test_use_item_updates_hp_sp_and_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

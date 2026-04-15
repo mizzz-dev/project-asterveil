@@ -72,3 +72,15 @@ class CraftingResult:
     message: str
     consumed: tuple[MaterialRequirementStatus, ...] = tuple()
     crafted: dict[str, int] | None = None
+
+
+@dataclass(frozen=True)
+class RecipeDiscoveryDefinition:
+    recipe_book_id: str | None
+    recipe_unlock_event_id: str | None
+    recipe_ids: tuple[str, ...]
+    unlock_source_type: str
+    source_id: str
+    unlock_message: str = ""
+    category: str = "general"
+    workshop_npc_id: str | None = None

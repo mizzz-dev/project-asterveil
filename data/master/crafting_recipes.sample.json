@@ -84,5 +84,34 @@
     },
     "visible_before_unlock": true,
     "unlock_message": "長老の助言で集中雫の応用調合を習得した。"
+  },
+  {
+    "recipe_id": "recipe.craft.tidal_tonic",
+    "name": "潮香トニック調合",
+    "category": "consumable",
+    "ingredients": [
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "item_id": "item.consumable.memory_tonic",
+        "quantity": 1
+      }
+    ],
+    "description": "工房で伝わる潮香トニックの調合法。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.recipe.discovery.tidal_tonic"
+      ]
+    },
+    "visible_before_unlock": false,
+    "unlock_message": "潮香トニックの調合法を会得した。"
   }
 ]

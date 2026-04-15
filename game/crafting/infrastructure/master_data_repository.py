@@ -6,6 +6,7 @@ from pathlib import Path
 from game.crafting.domain.entities import (
     CraftingIngredient,
     CraftingOutput,
+    RecipeDiscoveryDefinition,
     CraftingRecipeDefinition,
     RecipeUnlockConditions,
 )
@@ -105,3 +106,48 @@ class CraftingMasterDataRepository:
             ),
             required_location_ids=tuple(str(location_id) for location_id in raw_conditions.get("required_location_ids", [])),
         )
+
+    def load_recipe_discoveries(self) -> tuple[RecipeDiscoveryDefinition, ...]:
+        path = self._root / "recipe_discoveries.sample.json"
+        if not path.exists():
+            return tuple()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        definitions: list[RecipeDiscoveryDefinition] = []
+        for entry in raw:
+            unlock_source_type = str(entry.get("unlock_source_type") or "")
+            source_id = str(entry.get("source_id") or "")
+            recipe_ids = tuple(str(recipe_id) for recipe_id in entry.get("recipe_ids", []))
+            if not unlock_source_type:
+                raise ValueError("recipe_discoveries.sample.json missing field=unlock_source_type")
+            if not source_id:
+                raise ValueError("recipe_discoveries.sample.json missing field=source_id")
+            if not recipe_ids:
+                raise ValueError(
+                    f"recipe_discoveries.sample.json recipe_ids required source={unlock_source_type}:{source_id}"
+                )
+            definitions.append(
+                RecipeDiscoveryDefinition(
+                    recipe_book_id=str(entry.get("recipe_book_id") or "") or None,
+                    recipe_unlock_event_id=str(entry.get("recipe_unlock_event_id") or "") or None,
+                    recipe_ids=recipe_ids,
+                    unlock_source_type=unlock_source_type,
+                    source_id=source_id,
+                    unlock_message=str(entry.get("unlock_message", "")),
+                    category=str(entry.get("category", "general")),
+                    workshop_npc_id=str(entry.get("workshop_npc_id") or "") or None,
+                )
+            )
+        return tuple(definitions)
+
+    def load_workshop_npc_ids(self) -> set[str]:
+        path = self._root / "workshop_npcs.sample.json"
+        if not path.exists():
+            return set()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        npc_ids: set[str] = set()
+        for entry in raw:
+            workshop_npc_id = str(entry.get("workshop_npc_id") or "")
+            if not workshop_npc_id:
+                raise ValueError("workshop_npcs.sample.json missing field=workshop_npc_id")
+            npc_ids.add(workshop_npc_id)
+        return npc_ids

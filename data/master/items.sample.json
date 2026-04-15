@@ -170,5 +170,17 @@
     "stackable": false,
     "name": "メモリーエッジ",
     "description": "記憶片から鍛えた鋭い片手剣。"
+  },
+  {
+    "item_id": "item.key.recipe_book.tidal_tonic_notes",
+    "id": "item.key.recipe_book.tidal_tonic_notes",
+    "category": "key_item",
+    "item_type": "recipe_book",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "潮香トニックの走り書き",
+    "description": "工房職人の走り書き。読めば調合手順が分かる。"
   }
 ]

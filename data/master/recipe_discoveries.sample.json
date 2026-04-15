@@ -1,0 +1,35 @@
+[
+  {
+    "recipe_unlock_event_id": "recipe.unlock.quest.memory_edge",
+    "recipe_ids": [
+      "recipe.craft.memory_edge"
+    ],
+    "unlock_source_type": "quest_complete",
+    "source_id": "quest.ch01.missing_port_record",
+    "unlock_message": "港の依頼達成報酬で鍛造図面を受け取った。",
+    "category": "equipment",
+    "workshop_npc_id": "npc.astel.workshop_master"
+  },
+  {
+    "recipe_unlock_event_id": "recipe.unlock.dialogue.tidal_tonic",
+    "recipe_ids": [
+      "recipe.craft.tidal_tonic"
+    ],
+    "unlock_source_type": "dialogue_event",
+    "source_id": "dialogue.workshop.recipe_lesson",
+    "unlock_message": "工房主の指導で潮香トニックの調合法を覚えた。",
+    "category": "consumable",
+    "workshop_npc_id": "npc.astel.workshop_master"
+  },
+  {
+    "recipe_book_id": "recipe_book.astel.tidal_tonic_notes",
+    "recipe_ids": [
+      "recipe.craft.tidal_tonic"
+    ],
+    "unlock_source_type": "loot_item",
+    "source_id": "item.key.recipe_book.tidal_tonic_notes",
+    "unlock_message": "走り書きを読み、潮香トニックの調合法を把握した。",
+    "category": "consumable",
+    "workshop_npc_id": "npc.astel.workshop_master"
+  }
+]

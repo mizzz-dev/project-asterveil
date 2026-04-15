@@ -1,0 +1,8 @@
+[
+  {
+    "workshop_npc_id": "npc.astel.workshop_master",
+    "name": "工房主イェルド",
+    "location_id": "location.town.astel",
+    "default_message": "工房にようこそ。見つけたレシピはここで確認できる。"
+  }
+]

@@ -14,5 +14,13 @@
     "fallback_lines": [
       "港の見回りは任せて。"
     ]
+  },
+  {
+    "npc_id": "npc.astel.workshop_master",
+    "npc_name": "工房主イェルド",
+    "location_id": "location.town.astel",
+    "fallback_lines": [
+      "素材と発見したレシピを持ってきな。すぐ調合できるぞ。"
+    ]
   }
 ]
