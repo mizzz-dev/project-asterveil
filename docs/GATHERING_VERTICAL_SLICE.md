@@ -17,6 +17,10 @@
   - `repeatable=false` かつ採取済みなら再採取不可
 - 採取結果（loot）解決と inventory 反映の責務分離
 - Save/Load で採取済みノード状態を保持
+- `respawn_rule` による最小リポップ
+  - `on_rest`: 宿屋宿泊で再採取可能
+  - `on_return_to_hub`: 拠点帰還で再採取可能
+  - `none`: 非リポップ（従来どおり一度きり）
 
 ## 非対応（今回スコープ外）
 

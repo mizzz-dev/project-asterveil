@@ -15,7 +15,7 @@ from game.app.infrastructure.dialogue_event_repository import DialogueEventMaste
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.crafting.domain.services import CraftingService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
-from game.gathering.domain.services import GatheringService
+from game.gathering.domain.services import GatheringRespawnService, GatheringService
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
@@ -98,6 +98,7 @@ class PlayableSliceApplication:
         self._location_definitions = self._location_repo.load_locations()
         self._travel_service = TravelService(self._location_definitions, hub_location_id=HUB_LOCATION_ID)
         self._gathering_service = GatheringService()
+        self._gathering_respawn_service = GatheringRespawnService()
         self._gathering_nodes = self._gathering_repo.load_nodes(
             valid_item_ids=set(self._item_definitions),
             valid_location_ids=set(self._location_definitions),
@@ -163,7 +164,7 @@ class PlayableSliceApplication:
         event_meta = save_data.meta.get("event_state", {})
         self.completed_location_event_ids = set(event_meta.get("completed_location_event_ids", []))
         gathering_meta = save_data.meta.get("gathering_state", {})
-        self.gathered_node_ids = set(gathering_meta.get("gathered_node_ids", []))
+        self.gathered_node_ids = self._restore_gathered_node_ids(gathering_meta)
         crafting_meta = save_data.meta.get("crafting_state", {})
         self.unlocked_recipe_ids = set(crafting_meta.get("unlocked_recipe_ids", []))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
@@ -369,11 +370,14 @@ class PlayableSliceApplication:
         return lines
 
     def travel_to(self, location_id: str) -> list[str]:
+        previous_location_id = self.location_state.current_location_id
         result = self._travel_service.travel_to(self.location_state, location_id)
         if not result.success:
             return [result.message]
         destination = self._travel_service.location(location_id)
         lines = [result.message, f"current_location:{location_id}:{destination.name if destination else location_id}"]
+        if location_id == HUB_LOCATION_ID and previous_location_id != HUB_LOCATION_ID:
+            lines.extend(self._apply_gathering_respawn("on_return_to_hub"))
         lines.extend(self._run_on_enter_location_events(location_id))
         return lines
 
@@ -408,7 +412,8 @@ class PlayableSliceApplication:
         for status in statuses:
             lines.append(
                 f"gather_node:{status.node_id}:{status.name}:type={status.node_type}:"
-                f"can_gather={status.can_gather}:reason={status.reason_code}:gathered={status.is_gathered}"
+                f"can_gather={status.can_gather}:reason={status.reason_code}:gathered={status.is_gathered}:"
+                f"respawn_rule={status.respawn_rule}:respawn={status.respawn_description or 'none'}"
             )
         return lines
 
@@ -647,6 +652,7 @@ class PlayableSliceApplication:
         )
         lines = [result.message]
         if result.success:
+            lines.extend(self._apply_gathering_respawn("on_rest"))
             lines.extend(self.party_member_lines())
         return lines
 
@@ -809,7 +815,27 @@ class PlayableSliceApplication:
         if current_location.can_return_to_hub:
             self.location_state.current_location_id = HUB_LOCATION_ID
             logs.append(f"returned_to_hub:{HUB_LOCATION_ID}")
+            logs.extend(self._apply_gathering_respawn("on_return_to_hub"))
         return logs
+
+    def _apply_gathering_respawn(self, trigger: str) -> list[str]:
+        respawned_node_ids = self._gathering_respawn_service.respawn_by_trigger(
+            trigger=trigger,
+            nodes=self._gathering_nodes,
+            gathered_node_ids=self.gathered_node_ids,
+        )
+        if not respawned_node_ids:
+            return [f"gathering_respawned:{trigger}:count=0"]
+        lines = [f"gathering_respawned:{trigger}:count={len(respawned_node_ids)}"]
+        lines.extend(f"gathering_respawned_node:{trigger}:{node_id}" for node_id in respawned_node_ids)
+        return lines
+
+    def _restore_gathered_node_ids(self, gathering_meta: dict) -> set[str]:
+        gathered_node_ids = {str(node_id) for node_id in gathering_meta.get("gathered_node_ids", [])}
+        unknown_node_ids = sorted(node_id for node_id in gathered_node_ids if node_id not in self._gathering_nodes)
+        if unknown_node_ids:
+            raise ValueError(f"save_data has unknown gathered_node_ids={unknown_node_ids}")
+        return gathered_node_ids
 
     def _run_on_enter_location_events(self, location_id: str) -> list[str]:
         if self.quest_session is None:

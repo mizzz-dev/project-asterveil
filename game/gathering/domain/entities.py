@@ -21,6 +21,9 @@ class GatheringNodeDefinition:
     loot_entries: tuple[GatheringLootEntry, ...]
     repeatable: bool = False
     unlock_flags: tuple[str, ...] = tuple()
+    respawn_rule: str = "none"
+    respawn_group_id: str | None = None
+    respawn_description: str = ""
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class GatheringNodeStatus:
     can_gather: bool
     reason_code: str
     is_gathered: bool
+    respawn_rule: str
+    respawn_description: str
 
 
 @dataclass(frozen=True)

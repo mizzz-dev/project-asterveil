@@ -7,6 +7,8 @@ from game.gathering.domain.entities import GatheringLootEntry, GatheringNodeDefi
 
 
 class GatheringNodeMasterDataRepository:
+    SUPPORTED_RESPAWN_RULES = {"none", "on_rest", "on_return_to_hub"}
+
     def __init__(self, root: Path) -> None:
         self._root = root
 
@@ -75,6 +77,15 @@ class GatheringNodeMasterDataRepository:
                 loot_entries=tuple(loot_entries),
                 repeatable=bool(entry.get("repeatable", False)),
                 unlock_flags=tuple(str(flag_id) for flag_id in entry.get("unlock_flags", [])),
+                respawn_rule=self._resolve_respawn_rule(entry, node_id),
+                respawn_group_id=str(entry["respawn_group_id"]) if entry.get("respawn_group_id") else None,
+                respawn_description=str(entry.get("respawn_description") or ""),
             )
             result[node_id] = definition
         return result
+
+    def _resolve_respawn_rule(self, entry: dict, node_id: str) -> str:
+        raw_rule = str(entry.get("respawn_rule") or "none")
+        if raw_rule not in self.SUPPORTED_RESPAWN_RULES:
+            raise ValueError(f"gathering_nodes.sample.json unsupported respawn_rule={raw_rule} node_id={node_id}")
+        return raw_rule

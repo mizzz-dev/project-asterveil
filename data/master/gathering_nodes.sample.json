@@ -18,7 +18,9 @@
         "chance": 0.4
       }
     ],
-    "repeatable": false
+    "repeatable": false,
+    "respawn_rule": "on_rest",
+    "respawn_description": "宿屋に泊まると再採取可能"
   },
   {
     "node_id": "node.ore.tidal_flats_01",
@@ -33,7 +35,9 @@
         "drop_type": "guaranteed"
       }
     ],
-    "repeatable": false
+    "repeatable": false,
+    "respawn_rule": "on_return_to_hub",
+    "respawn_description": "拠点へ帰還すると再採取可能"
   },
   {
     "node_id": "node.salvage.sunken_storehouse_01",
@@ -49,6 +53,8 @@
       }
     ],
     "repeatable": false,
+    "respawn_rule": "none",
+    "respawn_description": "一度きりの採取ポイント",
     "unlock_flags": [
       "flag.ch01.port_record_restored"
     ]
