@@ -487,6 +487,39 @@ class PlayableSliceTests(unittest.TestCase):
             resumed_board = resumed.quest_board_lines()
             self.assertTrue(any("quest.ch01.harbor_cleanup" in line and "status=reacceptable" in line for line in resumed_board))
 
+    def test_multi_stage_gather_to_craft_to_turn_in_flow_and_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.accept_quest("quest.ch01.workshop_supply_chain")
+            app.inventory_state["items"] = {}
+
+            app.gather_from_node("node.herb.astel_backyard_01")
+            app.travel_to("location.field.tidal_flats")
+            gather_logs = app.gather_from_node("node.ore.tidal_flats_01")
+            self.assertTrue(any(line.startswith("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_gather") for line in gather_logs))
+
+            app.travel_to("location.town.astel")
+            discover_logs = app.talk_to_npc("npc.astel.workshop_master", choice_selector=lambda *_: "choice.learn")
+            self.assertTrue(any("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_discover" in line for line in discover_logs))
+
+            craft_logs = app.craft_recipe("recipe.craft.tidal_tonic")
+            self.assertTrue(any("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_craft" in line for line in craft_logs))
+
+            turn_in_logs = app.turn_in_quest_items("quest.ch01.workshop_supply_chain", auto_complete=True)
+            self.assertTrue(any("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_turn_in" in line for line in turn_in_logs))
+            self.assertEqual(app.quest_state("quest.ch01.workshop_supply_chain").status, QuestStatus.COMPLETED)
+            self.assertIn("flag.ch01.workshop_supply_complete", app.quest_session.world_flags)
+            self.assertTrue(
+                any("current_objective:quest.ch01.workshop_supply_chain:none" in line for line in app.perform_action("quests"))
+            )
+
+            app.perform_action("save")
+            resumed = self._build_app(tmp_dir)
+            resumed.continue_game()
+            self.assertEqual(resumed.quest_state("quest.ch01.workshop_supply_chain").status, QuestStatus.COMPLETED)
+            self.assertIn("flag.ch01.workshop_supply_complete", resumed.quest_session.world_flags)
+
 
 if __name__ == "__main__":
     unittest.main()

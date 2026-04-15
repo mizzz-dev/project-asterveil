@@ -68,72 +68,136 @@ class QuestProgressService:
         state.status = QuestStatus.IN_PROGRESS
         return state
 
+    def active_objective(self, state: QuestState):
+        if state.status != QuestStatus.IN_PROGRESS:
+            return None
+        definition = self._get_definition(state.quest_id)
+        for objective in self._ordered_objectives(definition):
+            if state.objective_progress.get(objective.id, 0) < objective.required_count:
+                return objective
+        return None
+
+    def active_objective_id(self, state: QuestState) -> str | None:
+        objective = self.active_objective(state)
+        return None if objective is None else objective.id
+
+    def completed_objective_ids(self, state: QuestState) -> tuple[str, ...]:
+        definition = self._get_definition(state.quest_id)
+        completed: list[str] = []
+        for objective in self._ordered_objectives(definition):
+            if state.objective_progress.get(objective.id, 0) >= objective.required_count:
+                completed.append(objective.id)
+        return tuple(completed)
+
     def apply_battle_result(self, state: QuestState, battle_result: BattleResult) -> QuestState:
         if state.status != QuestStatus.IN_PROGRESS:
             return state
-
-        definition = self._get_definition(state.quest_id)
         if not battle_result.player_won:
             return state
 
-        for objective in definition.objectives:
-            if objective.objective_type != "kill_enemy":
-                continue
-            if objective.target_enemy_id not in battle_result.defeated_enemy_ids:
-                continue
-            current = state.objective_progress.get(objective.id, 0)
-            state.objective_progress[objective.id] = min(objective.required_count, current + 1)
+        objective = self.active_objective(state)
+        if objective is None or objective.objective_type != "kill_enemy":
+            return state
+        if objective.target_enemy_id not in battle_result.defeated_enemy_ids:
+            return state
 
-        if self.is_objectives_completed(state):
-            state.status = QuestStatus.READY_TO_COMPLETE
+        current = state.objective_progress.get(objective.id, 0)
+        state.objective_progress[objective.id] = min(objective.required_count, current + 1)
+        self._refresh_status(state)
         return state
+
+    def apply_gather_item_progress(self, state: QuestState, gained_items: dict[str, int]) -> list[str]:
+        if state.status != QuestStatus.IN_PROGRESS or not gained_items:
+            return []
+        objective = self.active_objective(state)
+        if objective is None or objective.objective_type != "gather_items":
+            return []
+
+        current = state.objective_progress.get(objective.id, 0)
+        gained = 0
+        for item_id, required in objective.required_items:
+            if required <= 0:
+                continue
+            gained += min(required, max(0, int(gained_items.get(item_id, 0))))
+        if gained <= 0:
+            return []
+        state.objective_progress[objective.id] = min(objective.required_count, current + gained)
+        return self._build_progress_transition_logs(state, objective.id)
+
+    def apply_recipe_discovery_progress(self, state: QuestState, discovered_recipe_ids: set[str]) -> list[str]:
+        if state.status != QuestStatus.IN_PROGRESS or not discovered_recipe_ids:
+            return []
+        objective = self.active_objective(state)
+        if objective is None or objective.objective_type != "discover_recipe":
+            return []
+        matched = [recipe_id for recipe_id in objective.required_recipe_ids if recipe_id in discovered_recipe_ids]
+        if not matched:
+            return []
+        state.objective_progress[objective.id] = objective.required_count
+        logs = [f"quest_recipe_discovered:{state.quest_id}:{objective.id}:{recipe_id}" for recipe_id in matched]
+        logs.extend(self._build_progress_transition_logs(state, objective.id))
+        return logs
+
+    def apply_craft_item_progress(self, state: QuestState, crafted_items: dict[str, int]) -> list[str]:
+        if state.status != QuestStatus.IN_PROGRESS or not crafted_items:
+            return []
+        objective = self.active_objective(state)
+        if objective is None or objective.objective_type != "craft_item":
+            return []
+
+        current = state.objective_progress.get(objective.id, 0)
+        crafted_count = 0
+        for item_id, required in objective.required_items:
+            if required <= 0:
+                continue
+            crafted_count += min(required, max(0, int(crafted_items.get(item_id, 0))))
+        if crafted_count <= 0:
+            return []
+        state.objective_progress[objective.id] = min(objective.required_count, current + crafted_count)
+        return self._build_progress_transition_logs(state, objective.id)
 
     def build_turn_in_plan(self, state: QuestState, inventory_items: dict[str, int]) -> TurnInPlan:
         if state.status != QuestStatus.IN_PROGRESS:
             return TurnInPlan(success=False, code="turn_in_failed:quest_not_in_progress")
 
-        definition = self._get_definition(state.quest_id)
-        item_plans: list[TurnInItemPlan] = []
-        has_turn_in_objective = False
-
-        for objective in definition.objectives:
-            if objective.objective_type != "turn_in_items":
-                continue
-            has_turn_in_objective = True
-            item_progress = state.objective_item_progress.setdefault(
-                objective.id,
-                {item_id: 0 for item_id, _ in objective.required_items},
-            )
-            objective_pending: list[TurnInItemPlan] = []
-            objective_must_block = False
-            for item_id, required in objective.required_items:
-                submitted_before = int(item_progress.get(item_id, 0))
-                remain = max(0, required - submitted_before)
-                if remain <= 0:
-                    continue
-                owned = int(inventory_items.get(item_id, 0))
-                submit_now = min(remain, owned)
-                if submit_now <= 0:
-                    if not objective.allow_partial_turn_in:
-                        objective_must_block = True
-                    continue
-                objective_pending.append(
-                    TurnInItemPlan(
-                        objective_id=objective.id,
-                        item_id=item_id,
-                        required=required,
-                        submitted_before=submitted_before,
-                        submit_now=submit_now,
-                    )
-                )
-                if submit_now < remain and not objective.allow_partial_turn_in:
-                    objective_must_block = True
-            if objective_must_block:
-                return TurnInPlan(success=False, code="turn_in_failed:insufficient_items")
-            item_plans.extend(objective_pending)
-
-        if not has_turn_in_objective:
+        objective = self.active_objective(state)
+        if objective is None:
+            return TurnInPlan(success=False, code="turn_in_failed:no_active_objective")
+        if objective.objective_type != "turn_in_items":
             return TurnInPlan(success=False, code="turn_in_failed:no_turn_in_objective")
+
+        item_plans: list[TurnInItemPlan] = []
+        item_progress = state.objective_item_progress.setdefault(
+            objective.id,
+            {item_id: 0 for item_id, _ in objective.required_items},
+        )
+        objective_must_block = False
+
+        for item_id, required in objective.required_items:
+            submitted_before = int(item_progress.get(item_id, 0))
+            remain = max(0, required - submitted_before)
+            if remain <= 0:
+                continue
+            owned = int(inventory_items.get(item_id, 0))
+            submit_now = min(remain, owned)
+            if submit_now <= 0:
+                if not objective.allow_partial_turn_in:
+                    objective_must_block = True
+                continue
+            item_plans.append(
+                TurnInItemPlan(
+                    objective_id=objective.id,
+                    item_id=item_id,
+                    required=required,
+                    submitted_before=submitted_before,
+                    submit_now=submit_now,
+                )
+            )
+            if submit_now < remain and not objective.allow_partial_turn_in:
+                objective_must_block = True
+
+        if objective_must_block:
+            return TurnInPlan(success=False, code="turn_in_failed:insufficient_items")
         if not item_plans:
             return TurnInPlan(success=False, code="turn_in_failed:no_items_to_turn_in")
         return TurnInPlan(success=True, code="turn_in_ready", item_plans=tuple(item_plans))
@@ -157,8 +221,6 @@ class QuestProgressService:
             return [turn_in_plan.code]
 
         logs: list[str] = []
-        definition = self._get_definition(state.quest_id)
-        touched_objectives: set[str] = set()
         for plan in turn_in_plan.item_plans:
             objective_progress = state.objective_item_progress.setdefault(plan.objective_id, {})
             submitted_after = plan.submitted_before + plan.submit_now
@@ -167,24 +229,18 @@ class QuestProgressService:
                 f"turn_in_success:{state.quest_id}:{plan.objective_id}:{plan.item_id}:"
                 f"submitted={submitted_after}/{plan.required}:delta={plan.submit_now}"
             )
-            touched_objectives.add(plan.objective_id)
 
-        for objective in definition.objectives:
-            if objective.objective_type != "turn_in_items":
-                continue
-            objective_progress = state.objective_item_progress.get(objective.id, {})
-            total_required = sum(required for _, required in objective.required_items)
-            total_submitted = sum(
-                min(required, int(objective_progress.get(item_id, 0)))
-                for item_id, required in objective.required_items
-            )
-            state.objective_progress[objective.id] = total_submitted
-            if objective.id in touched_objectives and total_submitted >= total_required:
-                logs.append(f"quest_objective_completed:{state.quest_id}:{objective.id}")
-
-        if self.is_objectives_completed(state):
-            state.status = QuestStatus.READY_TO_COMPLETE
-            logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
+        objective = self.active_objective(state)
+        if objective is None:
+            return logs
+        objective_progress = state.objective_item_progress.get(objective.id, {})
+        total_required = sum(required for _, required in objective.required_items)
+        total_submitted = sum(
+            min(required, int(objective_progress.get(item_id, 0)))
+            for item_id, required in objective.required_items
+        )
+        state.objective_progress[objective.id] = total_submitted
+        logs.extend(self._build_progress_transition_logs(state, objective.id))
         return logs
 
     def complete(self, state: QuestState) -> QuestState:
@@ -212,10 +268,43 @@ class QuestProgressService:
 
     def is_objectives_completed(self, state: QuestState) -> bool:
         definition = self._get_definition(state.quest_id)
-        for objective in definition.objectives:
+        for objective in self._ordered_objectives(definition):
             if state.objective_progress.get(objective.id, 0) < objective.required_count:
                 return False
         return True
+
+    def _build_progress_transition_logs(self, state: QuestState, objective_id: str) -> list[str]:
+        logs: list[str] = []
+        definition = self._get_definition(state.quest_id)
+        objective_map = {objective.id: objective for objective in definition.objectives}
+        objective = objective_map.get(objective_id)
+        if objective is None:
+            return logs
+
+        if state.objective_progress.get(objective_id, 0) < objective.required_count:
+            return logs
+
+        logs.append(f"objective_completed:{state.quest_id}:{objective_id}")
+        self._refresh_status(state)
+        if state.status == QuestStatus.READY_TO_COMPLETE:
+            logs.append(f"quest_ready_to_report:{state.quest_id}")
+            logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
+            return logs
+
+        next_objective = self.active_objective(state)
+        if next_objective is not None:
+            logs.append(f"next_objective_unlocked:{state.quest_id}:{next_objective.id}")
+        return logs
+
+    def _refresh_status(self, state: QuestState) -> None:
+        if self.is_objectives_completed(state):
+            state.status = QuestStatus.READY_TO_COMPLETE
+
+    def _ordered_objectives(self, definition: QuestDefinition):
+        if not definition.objective_sequence:
+            return definition.objectives
+        objective_map = {objective.id: objective for objective in definition.objectives}
+        return tuple(objective_map[objective_id] for objective_id in definition.objective_sequence)
 
     def _get_definition(self, quest_id: str) -> QuestDefinition:
         if quest_id not in self.definitions:

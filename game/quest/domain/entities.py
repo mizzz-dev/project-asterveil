@@ -25,9 +25,14 @@ class QuestBoardStatus(str, Enum):
 class ObjectiveDefinition:
     id: str
     objective_type: str
+    description: str = ""
+    requirements: dict[str, object] = field(default_factory=dict)
+    next_objective_id: str | None = None
+    activation_condition: dict[str, object] = field(default_factory=dict)
     target_enemy_id: str | None = None
     required_count: int = 0
     required_items: tuple[tuple[str, int], ...] = tuple()
+    required_recipe_ids: tuple[str, ...] = tuple()
     allow_partial_turn_in: bool = False
 
 
@@ -62,6 +67,7 @@ class QuestDefinition:
     reaccept_message: str | None = None
     encounter_id: str | None = None
     target_location_id: str | None = None
+    objective_sequence: tuple[str, ...] = tuple()
 
 
 @dataclass

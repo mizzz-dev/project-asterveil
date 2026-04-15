@@ -139,6 +139,34 @@ class SaveSliceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SaveData.from_dict(broken)
 
+    def test_save_and_restore_multi_stage_mid_progress(self) -> None:
+        session = self._build_session()
+        service = session.quest_service
+        state = service.accept(service.create_initial_state("quest.ch01.workshop_supply_chain"))
+        session.quest_states["quest.ch01.workshop_supply_chain"] = state
+
+        service.apply_gather_item_progress(
+            state,
+            {"item.consumable.antidote_leaf": 1, "item.material.iron_fragment": 1},
+        )
+        self.assertEqual(service.active_objective_id(state), "obj.ch01.workshop_supply_discover")
+
+        save_data = self.app_service.build_save_data(
+            quest_session=session,
+            party_members=self._party_sample(),
+            last_event_id="event.system.quest_mid_progress:quest.ch01.workshop_supply_chain",
+        )
+
+        resumed = self._build_session()
+        self.app_service.restore_quest_session(resumed, save_data)
+        resumed_state = resumed.quest_states["quest.ch01.workshop_supply_chain"]
+        resumed_service = resumed.quest_service
+        self.assertEqual(resumed_service.active_objective_id(resumed_state), "obj.ch01.workshop_supply_discover")
+        self.assertEqual(
+            resumed_state.objective_progress["obj.ch01.workshop_supply_gather"],
+            2,
+        )
+
     def test_missing_required_top_level_field_detection(self) -> None:
         broken = {
             "save_version": 1,

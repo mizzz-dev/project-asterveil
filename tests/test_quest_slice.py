@@ -173,6 +173,49 @@ class QuestSliceTests(unittest.TestCase):
         self.assertEqual(entries["quest.ch01.harbor_cleanup"].status.value, "reacceptable")
         self.assertTrue(entries["quest.ch01.harbor_cleanup"].can_accept)
 
+    def test_multi_stage_objective_sequence_and_progression(self) -> None:
+        quest_id = "quest.ch01.workshop_supply_chain"
+        service = QuestProgressService(self.quest_defs)
+        definition = self.quest_defs[quest_id]
+        self.assertEqual(
+            definition.objective_sequence,
+            (
+                "obj.ch01.workshop_supply_gather",
+                "obj.ch01.workshop_supply_discover",
+                "obj.ch01.workshop_supply_craft",
+                "obj.ch01.workshop_supply_turn_in",
+            ),
+        )
+        state = service.accept(service.create_initial_state(quest_id))
+        self.assertEqual(service.active_objective_id(state), "obj.ch01.workshop_supply_gather")
+
+        gather_logs = service.apply_gather_item_progress(
+            state,
+            {"item.consumable.antidote_leaf": 1, "item.material.iron_fragment": 1},
+        )
+        self.assertIn("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_gather", gather_logs)
+        self.assertIn("next_objective_unlocked:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_discover", gather_logs)
+
+        discover_logs = service.apply_recipe_discovery_progress(state, {"recipe.craft.tidal_tonic"})
+        self.assertIn(
+            "objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_discover",
+            discover_logs,
+        )
+        self.assertEqual(service.active_objective_id(state), "obj.ch01.workshop_supply_craft")
+
+        craft_logs = service.apply_craft_item_progress(state, {"item.consumable.memory_tonic": 1})
+        self.assertIn("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_craft", craft_logs)
+        self.assertEqual(service.active_objective_id(state), "obj.ch01.workshop_supply_turn_in")
+
+        plan = service.build_turn_in_plan(state, {"item.consumable.memory_tonic": 1})
+        self.assertTrue(plan.success)
+        inventory_state = {"items": {"item.consumable.memory_tonic": 1}}
+        service.consume_turn_in_items(inventory_state, plan)
+        turn_in_logs = service.apply_turn_in_progress(state, plan)
+        self.assertIn("objective_completed:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_turn_in", turn_in_logs)
+        self.assertIn("quest_ready_to_report:quest.ch01.workshop_supply_chain", turn_in_logs)
+        self.assertEqual(state.status, QuestStatus.READY_TO_COMPLETE)
+
 
 if __name__ == "__main__":
     unittest.main()
