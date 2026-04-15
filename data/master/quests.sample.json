@@ -230,5 +230,92 @@
       "completion_flag": "flag.ch01.memory_fragments_delivered"
     },
     "target_location_id": "location.town.astel"
+  },
+  {
+    "quest_id": "quest.ch01.workshop_supply_chain",
+    "id": "quest.ch01.workshop_supply_chain",
+    "title": "工房補給の試作依頼",
+    "description": "採取・レシピ発見・クラフト・納品を順番に進め、工房の試作品を納品する。",
+    "category": "delivery",
+    "repeatable": false,
+    "reporting_npc_id": "npc.astel.workshop_master",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
+      "min_level": 1
+    },
+    "objective_sequence": [
+      "obj.ch01.workshop_supply_gather",
+      "obj.ch01.workshop_supply_discover",
+      "obj.ch01.workshop_supply_craft",
+      "obj.ch01.workshop_supply_turn_in"
+    ],
+    "objectives": [
+      {
+        "id": "obj.ch01.workshop_supply_gather",
+        "type": "gather_items",
+        "description": "解毒草と鉄片を集める。",
+        "required_items": [
+          {
+            "item_id": "item.consumable.antidote_leaf",
+            "quantity": 1
+          },
+          {
+            "item_id": "item.material.iron_fragment",
+            "quantity": 1
+          }
+        ],
+        "required_count": 2,
+        "next_objective_id": "obj.ch01.workshop_supply_discover"
+      },
+      {
+        "id": "obj.ch01.workshop_supply_discover",
+        "type": "discover_recipe",
+        "description": "工房主から潮香トニックのレシピを教わる。",
+        "required_recipe_ids": [
+          "recipe.craft.tidal_tonic"
+        ],
+        "next_objective_id": "obj.ch01.workshop_supply_craft"
+      },
+      {
+        "id": "obj.ch01.workshop_supply_craft",
+        "type": "craft_item",
+        "description": "潮香トニックを1個作る。",
+        "required_items": [
+          {
+            "item_id": "item.consumable.memory_tonic",
+            "quantity": 1
+          }
+        ],
+        "required_count": 1,
+        "next_objective_id": "obj.ch01.workshop_supply_turn_in"
+      },
+      {
+        "id": "obj.ch01.workshop_supply_turn_in",
+        "type": "turn_in_items",
+        "description": "完成した潮香トニックを納品する。",
+        "required_items": [
+          {
+            "item_id": "item.consumable.memory_tonic",
+            "quantity": 1
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 130,
+      "gold": 90,
+      "items": [
+        {
+          "item_id": "item.consumable.focus_drop",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.ch01.workshop_supply_complete"
+    },
+    "target_location_id": "location.town.astel"
   }
 ]

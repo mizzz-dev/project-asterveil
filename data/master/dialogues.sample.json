@@ -541,5 +541,189 @@
     "lines": [
       "潮香トニックは鉄片と解毒草で作れる。工房メモを確認してみな。"
     ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_offer",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 240,
+    "condition": {
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
+      "excluded_flags": [
+        "flag.quest.accepted:quest.ch01.workshop_supply_chain",
+        "flag.ch01.workshop_supply_complete"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.offer",
+        "speaker": "npc.astel.workshop_master",
+        "line": "工房の試作依頼だ。素材採取から納品まで一緒に流れを確認してみないか？",
+        "choices": [
+          {
+            "choice_id": "choice.accept",
+            "text": "依頼を受ける",
+            "next_step_id": "step.accepted",
+            "effects": [
+              {
+                "action_type": "accept_quest",
+                "params": {
+                  "quest_id": "quest.ch01.workshop_supply_chain"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.later",
+            "text": "あとで受ける",
+            "next_step_id": "step.later",
+            "effects": [
+              {
+                "action_type": "end_dialogue",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.accepted",
+        "speaker": "npc.astel.workshop_master",
+        "line": "まずは解毒草と鉄片を1つずつ集めてきてくれ。"
+      },
+      {
+        "step_id": "step.later",
+        "speaker": "npc.astel.workshop_master",
+        "line": "了解だ。準備できたらまた声をかけてくれ。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_gather",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 241,
+    "condition": {
+      "required_flags": [
+        "flag.quest.objective.active:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_gather"
+      ]
+    },
+    "lines": [
+      "今の段階は素材集めだ。解毒草と鉄片を1つずつ確保してくれ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_discover",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 242,
+    "condition": {
+      "required_flags": [
+        "flag.quest.objective.active:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_discover"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.teach",
+        "speaker": "npc.astel.workshop_master",
+        "line": "素材がそろったな。潮香トニックの調合法を伝える。",
+        "choices": [
+          {
+            "choice_id": "choice.learn",
+            "text": "レシピを教わる",
+            "next_step_id": "step.done",
+            "effects": [
+              {
+                "action_type": "unlock_recipe",
+                "params": {
+                  "source_id": "dialogue.workshop.recipe_lesson"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.done",
+        "speaker": "npc.astel.workshop_master",
+        "line": "次は実際に潮香トニックを1つ作ってみてくれ。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_craft",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 243,
+    "condition": {
+      "required_flags": [
+        "flag.quest.objective.active:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_craft"
+      ]
+    },
+    "lines": [
+      "調合法は覚えたはずだ。潮香トニックを作って完成品を見せてくれ。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_turn_in",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 244,
+    "condition": {
+      "required_flags": [
+        "flag.quest.objective.active:quest.ch01.workshop_supply_chain:obj.ch01.workshop_supply_turn_in"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.turnin",
+        "speaker": "npc.astel.workshop_master",
+        "line": "完成品があるなら納品してくれ。",
+        "choices": [
+          {
+            "choice_id": "choice.turnin",
+            "text": "納品する",
+            "next_step_id": "step.turnin_done",
+            "effects": [
+              {
+                "action_type": "turn_in_quest",
+                "params": {
+                  "quest_id": "quest.ch01.workshop_supply_chain",
+                  "auto_complete": "true"
+                }
+              }
+            ]
+          },
+          {
+            "choice_id": "choice.notyet",
+            "text": "まだ渡さない",
+            "next_step_id": "step.notyet"
+          }
+        ]
+      },
+      {
+        "step_id": "step.turnin_done",
+        "speaker": "npc.astel.workshop_master",
+        "line": "納品確認完了だ。次の依頼にも期待している。"
+      },
+      {
+        "step_id": "step.notyet",
+        "speaker": "npc.astel.workshop_master",
+        "line": "了解だ。準備が整ったら持ってきてくれ。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.multi_stage_completed",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 245,
+    "condition": {
+      "required_flags": [
+        "flag.ch01.workshop_supply_complete"
+      ]
+    },
+    "lines": [
+      "採取から納品までの流れは完璧だった。次は応用課題に進めるぞ。"
+    ]
   }
 ]

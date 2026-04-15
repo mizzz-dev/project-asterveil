@@ -143,6 +143,7 @@ class PlayableSliceApplication:
         self.discovered_recipe_book_ids = set()
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self._evaluate_recipe_unlocks()
+        self._refresh_all_quest_objective_flags()
         self.last_event_id = "event.system.new_game_intro"
 
         return [
@@ -182,6 +183,7 @@ class PlayableSliceApplication:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self._evaluate_recipe_unlocks()
+        self._refresh_all_quest_objective_flags()
         return True, "セーブデータをロードしました。"
 
     def available_actions(self) -> list[ActionItem]:
@@ -303,10 +305,12 @@ class PlayableSliceApplication:
         self.quest_session.quest_states[quest_id] = state
         if status == QuestBoardStatus.REACCEPTABLE:
             self.quest_session.quest_service.reaccept(state)
+            self._refresh_quest_objective_flags(quest_id)
             self.last_event_id = f"event.system.quest_reaccepted:{quest_id}"
             return [f"quest_reaccepted:{quest_id}"]
         self.quest_session.quest_service.accept(state)
         self.quest_session.world_flags.add(f"flag.quest.accepted:{quest_id}")
+        self._refresh_quest_objective_flags(quest_id)
         self.last_event_id = f"event.system.quest_accepted:{quest_id}"
         return [f"quest_accepted:{quest_id}"]
 
@@ -342,6 +346,7 @@ class PlayableSliceApplication:
 
         self.quest_session.quest_service.consume_turn_in_items(self.inventory_state, turn_in_plan)
         logs = self.quest_session.quest_service.apply_turn_in_progress(state, turn_in_plan)
+        self._refresh_quest_objective_flags(quest_id)
         if auto_complete and state.status == QuestStatus.READY_TO_COMPLETE:
             logs.extend(self._complete_quest(quest_id))
         self.last_event_id = f"event.system.quest_turn_in:{quest_id}"
@@ -457,6 +462,7 @@ class PlayableSliceApplication:
         )
         for item_id, amount in sorted(result.gained_items.items()):
             lines.append(f"gathered_item:{item_id}:x{amount}")
+        lines.extend(self._apply_quest_gather_progress(result.gained_items))
         lines.extend(self._apply_recipe_discovery_for_items(set(result.gained_items)))
         return lines
 
@@ -571,6 +577,9 @@ class PlayableSliceApplication:
             )
         if action_type == "report_quest":
             return self._complete_quest(params["quest_id"])
+        if action_type == "unlock_recipe":
+            source_id = params.get("source_id") or "dialogue_choice"
+            return self._apply_recipe_discovery("dialogue_event", source_id)
         if action_type == "start_battle":
             return self._run_event_battle(params["encounter_id"])
         if action_type == "end_dialogue":
@@ -670,6 +679,7 @@ class PlayableSliceApplication:
         if result.crafted:
             for item_id, amount in sorted(result.crafted.items()):
                 lines.append(f"crafted_item:{item_id}:x{amount}")
+            lines.extend(self._apply_quest_craft_progress(result.crafted))
         return lines
 
     def inn_info_lines(self, inn_id: str = BASE_INN_ID) -> list[str]:
@@ -844,6 +854,7 @@ class PlayableSliceApplication:
         for state in self.quest_session.quest_states.values():
             before = state.status
             self.quest_session.quest_service.apply_battle_result(state, battle_result)
+            self._refresh_quest_objective_flags(state.quest_id)
             if before != state.status:
                 logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
 
@@ -973,6 +984,7 @@ class PlayableSliceApplication:
         for state in self.quest_session.quest_states.values():
             before = state.status
             self.quest_session.quest_service.apply_battle_result(state, battle_result)
+            self._refresh_quest_objective_flags(state.quest_id)
             if before != state.status:
                 logs.append(f"quest_status_changed:{state.quest_id}:{state.status.value}")
         return logs
@@ -1057,6 +1069,8 @@ class PlayableSliceApplication:
                 f"quest:{quest_id}:status={state.status.value}:progress={state.objective_progress}:"
                 f"reward_claimed={state.reward_claimed}"
             )
+            current_objective_id = self.quest_session.quest_service.active_objective_id(state)
+            lines.append(f"current_objective:{quest_id}:{current_objective_id or 'none'}")
             definition = self.quest_session.quest_service.definitions[quest_id]
             for objective in definition.objectives:
                 if objective.objective_type != "turn_in_items":
@@ -1118,6 +1132,7 @@ class PlayableSliceApplication:
             return [f"report_failed:not_ready:{quest_id}"]
 
         self.quest_session.quest_service.complete(state)
+        self._refresh_quest_objective_flags(quest_id)
         quest_reward = self.quest_session.quest_service.definitions[quest_id].reward
         logs = [f"quest_completed:{quest_id}"]
         logs.extend(
@@ -1141,7 +1156,14 @@ class PlayableSliceApplication:
         self.last_event_id = f"event.system.quest_report:{quest_id}"
         return logs
 
+    def _refresh_all_quest_objective_flags(self) -> None:
+        if self.quest_session is None:
+            return
+        for quest_id in sorted(self.quest_session.quest_states):
+            self._refresh_quest_objective_flags(quest_id)
+
     def _apply_recipe_discovery(self, unlock_source_type: str, source_id: str) -> list[str]:
+        before = set(self.discovered_recipe_ids)
         discovered, already_known, warnings = self._recipe_discovery_service.discover_by_source(
             unlock_source_type=unlock_source_type,
             source_id=source_id,
@@ -1149,15 +1171,77 @@ class PlayableSliceApplication:
             discovered_recipe_book_ids=self.discovered_recipe_book_ids,
             unlocked_recipe_ids=self.unlocked_recipe_ids,
         )
-        return [*discovered, *already_known, *warnings]
+        logs = [*discovered, *already_known, *warnings]
+        new_recipes = self.discovered_recipe_ids - before
+        logs.extend(self._apply_quest_recipe_discovery_progress(new_recipes))
+        return logs
 
     def _apply_recipe_discovery_for_items(self, gained_item_ids: set[str]) -> list[str]:
         if not gained_item_ids:
             return []
+        before = set(self.discovered_recipe_ids)
         discovered, already_known, warnings = self._recipe_discovery_service.discover_from_items(
             gained_item_ids=gained_item_ids,
             discovered_recipe_ids=self.discovered_recipe_ids,
             discovered_recipe_book_ids=self.discovered_recipe_book_ids,
             unlocked_recipe_ids=self.unlocked_recipe_ids,
         )
-        return [*discovered, *already_known, *warnings]
+        logs = [*discovered, *already_known, *warnings]
+        new_recipes = self.discovered_recipe_ids - before
+        logs.extend(self._apply_quest_recipe_discovery_progress(new_recipes))
+        return logs
+
+    def _apply_quest_gather_progress(self, gained_items: dict[str, int]) -> list[str]:
+        if self.quest_session is None:
+            return []
+        logs: list[str] = []
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            progress_logs = self.quest_session.quest_service.apply_gather_item_progress(state, gained_items)
+            if not progress_logs:
+                continue
+            logs.extend(progress_logs)
+            self._refresh_quest_objective_flags(quest_id)
+        return logs
+
+    def _apply_quest_recipe_discovery_progress(self, discovered_recipe_ids: set[str]) -> list[str]:
+        if self.quest_session is None or not discovered_recipe_ids:
+            return []
+        logs: list[str] = []
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            progress_logs = self.quest_session.quest_service.apply_recipe_discovery_progress(state, discovered_recipe_ids)
+            if not progress_logs:
+                continue
+            logs.extend(progress_logs)
+            self._refresh_quest_objective_flags(quest_id)
+        return logs
+
+    def _apply_quest_craft_progress(self, crafted_items: dict[str, int]) -> list[str]:
+        if self.quest_session is None:
+            return []
+        logs: list[str] = []
+        for quest_id, state in sorted(self.quest_session.quest_states.items()):
+            progress_logs = self.quest_session.quest_service.apply_craft_item_progress(state, crafted_items)
+            if not progress_logs:
+                continue
+            logs.extend(progress_logs)
+            self._refresh_quest_objective_flags(quest_id)
+        return logs
+
+    def _refresh_quest_objective_flags(self, quest_id: str) -> None:
+        if self.quest_session is None:
+            return
+        state = self.quest_session.quest_states.get(quest_id)
+        if state is None:
+            return
+        prefixes = (
+            f"flag.quest.objective.active:{quest_id}:",
+            f"flag.quest.objective.completed:{quest_id}:",
+        )
+        for flag_id in list(self.quest_session.world_flags):
+            if flag_id.startswith(prefixes):
+                self.quest_session.world_flags.discard(flag_id)
+        active_objective_id = self.quest_session.quest_service.active_objective_id(state)
+        if active_objective_id:
+            self.quest_session.world_flags.add(f"flag.quest.objective.active:{quest_id}:{active_objective_id}")
+        for objective_id in self.quest_session.quest_service.completed_objective_ids(state):
+            self.quest_session.world_flags.add(f"flag.quest.objective.completed:{quest_id}:{objective_id}")
