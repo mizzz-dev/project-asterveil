@@ -1,0 +1,123 @@
+[
+  {
+    "event_id": "event.field.tidal_flats.drift_supply",
+    "location_id": "location.field.tidal_flats",
+    "name": "流れ着いた補給袋",
+    "description": "潮だまりに引っかかった補給袋。慎重に回収するか、急いで開けるか選べる。",
+    "trigger_type": "manual_explore",
+    "repeatable": false,
+    "choices": [
+      {
+        "choice_id": "choice.safe_collect",
+        "text": "慎重に回収する",
+        "outcomes": [
+          {
+            "outcome_type": "show_message",
+            "params": {
+              "message": "罠を避けて補給袋を回収できた。"
+            }
+          },
+          {
+            "outcome_type": "grant_items",
+            "params": {
+              "item_id": "item.consumable.mini_potion",
+              "amount": "1"
+            }
+          },
+          {
+            "outcome_type": "set_flag",
+            "params": {
+              "flag_id": "flag.field_event.tidal_flats.safe_supply_collected"
+            }
+          }
+        ]
+      },
+      {
+        "choice_id": "choice.risky_open",
+        "text": "急いで開ける",
+        "outcomes": [
+          {
+            "outcome_type": "show_message",
+            "params": {
+              "message": "袋に潜んでいた亡霊が襲いかかってきた。"
+            }
+          },
+          {
+            "outcome_type": "start_battle",
+            "params": {
+              "encounter_id": "encounter.ch01.port_wraith"
+            }
+          },
+          {
+            "outcome_type": "grant_items",
+            "params": {
+              "item_id": "item.material.memory_shard",
+              "amount": "1"
+            }
+          },
+          {
+            "outcome_type": "set_flag",
+            "params": {
+              "flag_id": "flag.field_event.tidal_flats.risky_supply_opened"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "event_id": "event.field.tidal_flats.toxic_mushroom",
+    "location_id": "location.field.tidal_flats",
+    "name": "潮毒キノコの群生",
+    "description": "潮毒キノコを採るか、遠回りして回避するかを選べる。",
+    "trigger_type": "manual_explore",
+    "repeatable": true,
+    "choices": [
+      {
+        "choice_id": "choice.avoid_patch",
+        "text": "近寄らずに回避する",
+        "outcomes": [
+          {
+            "outcome_type": "show_message",
+            "params": {
+              "message": "危険を回避して安全に探索を続けた。"
+            }
+          }
+        ]
+      },
+      {
+        "choice_id": "choice.harvest_patch",
+        "text": "キノコを採取する",
+        "outcomes": [
+          {
+            "outcome_type": "grant_items",
+            "params": {
+              "item_id": "item.consumable.antidote_leaf",
+              "amount": "1"
+            }
+          },
+          {
+            "outcome_type": "apply_effect_to_party",
+            "params": {
+              "effect_id": "effect.ailment.poison",
+              "remaining_turns": "2"
+            }
+          },
+          {
+            "outcome_type": "unlock_treasure_node",
+            "params": {
+              "reward_node_id": "reward.discovery.tidal_flats_hidden_cache",
+              "flag_id": "flag.field_event.tidal_flats.hidden_cache_unlocked"
+            }
+          },
+          {
+            "outcome_type": "set_flag",
+            "params": {
+              "flag_id": "flag.field_event.tidal_flats.toxic_patch_harvested"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

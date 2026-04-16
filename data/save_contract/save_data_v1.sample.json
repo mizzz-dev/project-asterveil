@@ -78,7 +78,14 @@
     "event_state": {
       "completed_location_event_ids": [
         "event.location.tidal_flats.first_entry"
-      ]
+      ],
+      "completed_field_event_ids": [
+        "event.field.tidal_flats.drift_supply"
+      ],
+      "field_event_choice_history": {
+        "event.field.tidal_flats.drift_supply": "choice.safe_collect",
+        "event.field.tidal_flats.toxic_mushroom": "choice.harvest_patch"
+      }
     },
     "gathering_state": {
       "gathered_node_ids": [

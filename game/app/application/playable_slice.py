@@ -21,7 +21,9 @@ from game.gathering.domain.services import GatheringRespawnService, GatheringSer
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
+from game.location.domain.field_event_service import FieldEventService
 from game.location.domain.treasure_services import TreasureService
+from game.location.infrastructure.field_event_repository import FieldEventMasterDataRepository
 from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
 from game.location.infrastructure.treasure_repository import TreasureMasterDataRepository
 from game.quest.application.session import QuestSliceSession
@@ -30,7 +32,7 @@ from game.quest.domain.entities import BattleResult, QuestBoardStatus, QuestStat
 from game.quest.domain.services import QuestBoardService, QuestProgressService
 from game.quest.infrastructure.master_data_repository import QuestMasterDataRepository
 from game.save.application.session import SaveSliceApplicationService
-from game.save.domain.entities import PartyMemberState
+from game.save.domain.entities import PartyActiveEffectState, PartyMemberState
 from game.save.infrastructure.repository import JsonFileSaveRepository
 from game.shop.domain.services import ShopService
 from game.shop.infrastructure.master_data_repository import ShopMasterDataRepository
@@ -61,6 +63,7 @@ class PlayableSliceApplication:
         self._crafting_repo = CraftingMasterDataRepository(master_root)
         self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
         self._treasure_repo = TreasureMasterDataRepository(master_root)
+        self._field_event_repo = FieldEventMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
@@ -124,12 +127,15 @@ class PlayableSliceApplication:
         )
         self._dialogue_service = DialogueService(self._dialogue_event_repo.load_npc_dialogues())
         self._location_event_service = LocationEventService(self._dialogue_event_repo.load_location_events())
+        self._field_event_service = FieldEventService(self._field_event_repo.load_events())
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
         self.last_event_id: str | None = None
         self.inventory_state: dict = {}
         self.completed_location_event_ids: set[str] = set()
+        self.completed_field_event_ids: set[str] = set()
+        self.field_event_choice_history: dict[str, str] = {}
         self.gathered_node_ids: set[str] = set()
         self.unlocked_recipe_ids: set[str] = set()
         self.discovered_recipe_ids: set[str] = set()
@@ -156,6 +162,8 @@ class PlayableSliceApplication:
         self.quest_session.world_flags.add("flag.game.new_game_started")
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
         self.completed_location_event_ids = set()
+        self.completed_field_event_ids = set()
+        self.field_event_choice_history = {}
         self.gathered_node_ids = set()
         self.unlocked_recipe_ids = set()
         self.discovered_recipe_ids = set()
@@ -198,6 +206,11 @@ class PlayableSliceApplication:
         )
         event_meta = save_data.meta.get("event_state", {})
         self.completed_location_event_ids = set(event_meta.get("completed_location_event_ids", []))
+        self.completed_field_event_ids = set(event_meta.get("completed_field_event_ids", []))
+        self.field_event_choice_history = {
+            str(event_id): str(choice_id)
+            for event_id, choice_id in event_meta.get("field_event_choice_history", {}).items()
+        }
         gathering_meta = save_data.meta.get("gathering_state", {})
         self.gathered_node_ids = self._restore_gathered_node_ids(gathering_meta)
         crafting_meta = save_data.meta.get("crafting_state", {})
@@ -243,6 +256,7 @@ class PlayableSliceApplication:
             ActionItem("gather_nodes", "採取ポイント確認"),
             ActionItem("gather", "採取する"),
             ActionItem("talk_npc", "NPCと話す"),
+            ActionItem("field_events", "探索イベントを調べる"),
         ]
         if self._has_active_quest() and self._location_can_hunt():
             items.append(ActionItem("hunt", "討伐へ進む"))
@@ -283,6 +297,8 @@ class PlayableSliceApplication:
             return ["gather_failed:selection_required"]
         if action_key == "talk_npc":
             return self.talk_npc_options_lines()
+        if action_key == "field_events":
+            return self.field_event_lines()
         if action_key == "inventory":
             return self._inventory_lines()
         if action_key == "use_item":
@@ -414,6 +430,8 @@ class PlayableSliceApplication:
                 },
                 "event_state": {
                     "completed_location_event_ids": sorted(self.completed_location_event_ids),
+                    "completed_field_event_ids": sorted(self.completed_field_event_ids),
+                    "field_event_choice_history": dict(sorted(self.field_event_choice_history.items())),
                 },
                 "gathering_state": {
                     "gathered_node_ids": sorted(self.gathered_node_ids),
@@ -619,6 +637,76 @@ class PlayableSliceApplication:
         if not npcs:
             return [f"npc:none:location={self.location_state.current_location_id}"]
         return [f"npc:{npc.npc_id}:{npc.npc_name}" for npc in npcs]
+
+    def field_event_lines(self) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._field_event_service.list_events_for_location(
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            completed_event_ids=self.completed_field_event_ids,
+        )
+        if not statuses:
+            return [f"field_event:none:location={self.location_state.current_location_id}"]
+        lines = [f"field_event_list:location={self.location_state.current_location_id}"]
+        for status in statuses:
+            state_label = "[再実行可]" if status.repeatable else ("[実行済み]" if status.is_completed else "[未実行]")
+            lines.append(
+                f"field_event:{status.event_id}:{status.name}:{state_label}:"
+                f"can_execute={status.can_execute}:reason={status.reason_code}"
+            )
+            lines.append(f"field_event_desc:{status.event_id}:{status.description}")
+        return lines
+
+    def executable_field_event_choices(self) -> list[tuple[str, str]]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._field_event_service.list_events_for_location(
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            completed_event_ids=self.completed_field_event_ids,
+        )
+        choices: list[tuple[str, str]] = []
+        for status in statuses:
+            if not status.can_execute:
+                continue
+            choices.append((status.event_id, f"{status.name} ({status.event_id})"))
+        return choices
+
+    def field_event_choice_lines(self, event_id: str) -> list[str]:
+        event = self._field_event_service.definitions.get(event_id)
+        if event is None:
+            return [f"field_event_failed:event_not_found:{event_id}"]
+        if event.location_id != self.location_state.current_location_id:
+            return [f"field_event_failed:location_mismatch:{event_id}:{self.location_state.current_location_id}"]
+        lines = [f"field_event_choices:{event.event_id}:{event.name}"]
+        for choice in event.choices:
+            lines.append(f"field_event_choice:{choice.choice_id}:{choice.text}")
+        return lines
+
+    def resolve_field_event_choice(self, event_id: str, choice_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        resolved = self._field_event_service.resolve_choice(
+            event_id=event_id,
+            choice_id=choice_id,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            completed_event_ids=self.completed_field_event_ids,
+        )
+        if not resolved.success:
+            return [resolved.code]
+        if resolved.event is None or resolved.choice is None:
+            return ["field_event_failed:definition_error"]
+        lines = [f"field_event_resolved:{resolved.event.event_id}"]
+        lines.append(f"field_choice_selected:{resolved.event.event_id}:{resolved.choice.choice_id}")
+        self.field_event_choice_history[resolved.event.event_id] = resolved.choice.choice_id
+        for outcome in resolved.choice.outcomes:
+            lines.extend(self._run_field_event_outcome(outcome.outcome_type, outcome.params))
+        if resolved.should_mark_completed:
+            self.completed_field_event_ids.add(resolved.event.event_id)
+        self.last_event_id = resolved.event.event_id
+        return lines
 
     def talk_to_npc(
         self,
@@ -1121,6 +1209,56 @@ class PlayableSliceApplication:
         if action_type == "start_battle":
             return self._run_event_battle(params["encounter_id"])
         return [f"location_event_action_skipped:unsupported:{action_type}"]
+
+    def _run_field_event_outcome(self, outcome_type: str, params: dict[str, str]) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        if outcome_type == "show_message":
+            return [f"field_event_message:{params.get('message', '')}"]
+        if outcome_type == "set_flag":
+            flag_id = params.get("flag_id", "")
+            if not flag_id:
+                return ["field_event_outcome_failed:set_flag_missing_flag_id"]
+            self.quest_session.world_flags.add(flag_id)
+            logs = [f"flag_set:{flag_id}"]
+            logs.extend(f"location_unlocked:{location_id}" for location_id in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags))
+            logs.extend(self._evaluate_recipe_unlocks())
+            return logs
+        if outcome_type == "grant_items":
+            item_id = params.get("item_id", "")
+            if item_id not in self._item_definitions:
+                return [f"field_event_outcome_failed:unknown_item_id:{item_id}"]
+            amount = int(params.get("amount", "1"))
+            if amount <= 0:
+                return [f"field_event_outcome_failed:invalid_amount:{amount}"]
+            items = self.inventory_state.setdefault("items", {})
+            items[item_id] = int(items.get(item_id, 0)) + amount
+            logs = [f"field_event_item_granted:{item_id}:x{amount}"]
+            logs.extend(self._apply_recipe_discovery_for_items({item_id}))
+            logs.extend(self._apply_quest_gather_progress({item_id: amount}))
+            return logs
+        if outcome_type == "start_battle":
+            encounter_id = params.get("encounter_id", "")
+            if not encounter_id:
+                return ["field_event_outcome_failed:start_battle_missing_encounter_id"]
+            return self._run_event_battle(encounter_id)
+        if outcome_type == "apply_effect_to_party":
+            effect_id = params.get("effect_id", "")
+            if effect_id not in self._status_effect_definitions:
+                return [f"field_event_outcome_failed:unknown_effect_id:{effect_id}"]
+            turns = int(params.get("remaining_turns", "2"))
+            for member in self.party_members:
+                member.active_effects = [effect for effect in member.active_effects if effect.effect_id != effect_id]
+                member.active_effects.append(PartyActiveEffectState(effect_id=effect_id, remaining_turns=turns))
+            return [f"field_event_effect_applied:{effect_id}:turns={turns}:targets={len(self.party_members)}"]
+        if outcome_type == "unlock_treasure_node":
+            reward_node_id = params.get("reward_node_id", "")
+            if reward_node_id not in self._treasure_nodes:
+                return [f"field_event_outcome_failed:unknown_treasure_node:{reward_node_id}"]
+            unlock_flag = params.get("flag_id") or f"flag.treasure.unlocked:{reward_node_id}"
+            self.quest_session.world_flags.add(unlock_flag)
+            return [f"field_event_treasure_unlocked:{reward_node_id}:{unlock_flag}"]
+        return [f"field_event_outcome_skipped:unsupported:{outcome_type}"]
 
     def _evaluate_recipe_unlocks(self) -> list[str]:
         if self.quest_session is None:

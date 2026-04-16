@@ -78,5 +78,24 @@
       "flag.ch01.port_record_restored"
     ],
     "message_on_open": "封鎖倉庫の保管箱から解毒草を受け取った。"
+  },
+  {
+    "reward_node_id": "reward.discovery.tidal_flats_hidden_cache",
+    "location_id": "location.field.tidal_flats",
+    "name": "干潟の隠し包み",
+    "node_type": "discoverable_cache",
+    "description": "岩陰に隠されていた防水包み。",
+    "contents": [
+      {
+        "content_type": "item",
+        "item_id": "item.material.memory_shard",
+        "quantity": 1
+      }
+    ],
+    "one_time": true,
+    "required_flags": [
+      "flag.field_event.tidal_flats.hidden_cache_unlocked"
+    ],
+    "message_on_open": "防水包みから記憶片を見つけた。"
   }
 ]

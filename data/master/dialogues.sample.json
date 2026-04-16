@@ -216,6 +216,19 @@
     ]
   },
   {
+    "entry_id": "dialogue.guard_field_event_hidden_cache",
+    "npc_id": "npc.astel.guard",
+    "priority": 210,
+    "condition": {
+      "required_flags": [
+        "flag.field_event.tidal_flats.hidden_cache_unlocked"
+      ]
+    },
+    "lines": [
+      "干潟で隠し包みを見つけたの？ その辺りは毒胞子が出るから気をつけて。"
+    ]
+  },
+  {
     "entry_id": "dialogue.guard.turn_in_offer",
     "npc_id": "npc.astel.guard",
     "priority": 320,
