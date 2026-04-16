@@ -98,6 +98,31 @@
       "discovered_recipe_book_ids": [
         "recipe_book.astel.tidal_tonic_notes"
       ]
+    },
+    "facility_state": {
+      "facility_levels": {
+        "facility.hub.workshop": 2,
+        "facility.hub.general_store": 2
+      },
+      "unlocked_recipe_ids": [
+        "recipe.craft.memory_tonic",
+        "recipe.craft.memory_edge",
+        "recipe.craft.herbal_focus_drop",
+        "recipe.craft.tidal_tonic",
+        "recipe.craft.tidal_guard_talisman"
+      ],
+      "unlocked_shop_stock_ids": [
+        "item.consumable.mini_potion",
+        "item.consumable.focus_drop",
+        "item.consumable.antidote_leaf",
+        "equip.weapon.iron_blade",
+        "equip.armor.leather_jacket",
+        "equip.armor.antivenom_charm",
+        "item.material.iron_fragment",
+        "equip.armor.vanguard_emblem",
+        "equip.weapon.prayer_staff"
+      ],
+      "turn_in_completion_count": 2
     }
   }
 }

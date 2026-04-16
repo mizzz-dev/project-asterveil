@@ -31,5 +31,16 @@
     "unlock_message": "走り書きを読み、潮香トニックの調合法を把握した。",
     "category": "consumable",
     "workshop_npc_id": "npc.astel.workshop_master"
+  },
+  {
+    "unlock_source_type": "dialogue_event",
+    "source_id": "dialogue.workshop.rank2_blueprint",
+    "recipe_book_id": "recipe_book.astel.tidal_guard_talisman_notes",
+    "recipe_ids": [
+      "recipe.craft.tidal_guard_talisman"
+    ],
+    "unlock_message": "工房増築記念の設計図で潮守の護符鍛造を習得した。",
+    "category": "equipment",
+    "workshop_npc_id": "npc.astel.workshop_master"
   }
 ]

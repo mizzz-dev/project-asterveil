@@ -113,5 +113,34 @@
     },
     "visible_before_unlock": false,
     "unlock_message": "潮香トニックの調合法を会得した。"
+  },
+  {
+    "recipe_id": "recipe.craft.tidal_guard_talisman",
+    "name": "潮守の護符鍛造",
+    "category": "equipment",
+    "description": "工房増強後に扱える守護装備。",
+    "ingredients": [
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 2
+      },
+      {
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "equipment_id": "equip.armor.vanguard_emblem",
+        "quantity": 1
+      }
+    ],
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.hub.facility.workshop.level2"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "工房ランク上昇で潮守の護符鍛造が可能になった。"
   }
 ]

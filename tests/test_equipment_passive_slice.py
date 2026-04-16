@@ -6,7 +6,7 @@ from pathlib import Path
 
 from game.app.application.playable_slice import PlayableSliceApplication
 from game.battle.application.equipment_passive_service import EquipmentPassiveService, PassiveEffect
-from game.quest.domain.entities import BattleResult
+from game.quest.domain.entities import BattleResult, QuestStatus
 
 
 class EquipmentPassiveSliceTests(unittest.TestCase):
@@ -43,6 +43,11 @@ class EquipmentPassiveSliceTests(unittest.TestCase):
             )
             app.new_game()
             app.accept_quest("quest.ch01.missing_port_record")
+            app.quest_session.quest_states["quest.ch01.memory_fragment_delivery"] = (
+                app.quest_session.quest_service.create_initial_state("quest.ch01.memory_fragment_delivery")
+            )
+            app.quest_session.quest_states["quest.ch01.memory_fragment_delivery"].status = QuestStatus.READY_TO_COMPLETE
+            app.perform_action("report")
 
             app.buy_item("equip.weapon.prayer_staff")
             equip_logs = app.equip_item("char.main.rion", "weapon", "equip.weapon.prayer_staff")

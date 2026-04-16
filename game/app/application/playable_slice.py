@@ -10,8 +10,10 @@ from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
 from game.app.application.skill_learning_service import LearnableSkill, SkillLearningService
 from game.app.application.dialogue_event_service import DialogueService, LocationEventService
+from game.app.application.facility_progression_service import FacilityProgressContext, FacilityProgressService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
+from game.app.infrastructure.facility_master_data_repository import FacilityMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.crafting.domain.services import CraftingService, RecipeDiscoveryService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
@@ -53,6 +55,7 @@ class PlayableSliceApplication:
         self._quest_repo = QuestMasterDataRepository(master_root)
         self._app_master_repo = AppMasterDataRepository(master_root)
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
+        self._facility_repo = FacilityMasterDataRepository(master_root)
         self._crafting_repo = CraftingMasterDataRepository(master_root)
         self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
@@ -92,6 +95,8 @@ class PlayableSliceApplication:
             self._crafting_repo.load_recipe_discoveries(),
             valid_recipe_ids=set(self._crafting_recipes),
         )
+        self._facility_progress_service = FacilityProgressService()
+        self._facility_definitions = self._facility_repo.load_facilities()
         self._workshop_npc_ids = self._crafting_repo.load_workshop_npc_ids()
         self._equipment_service = EquipmentService(self._equipment_definitions)
         self._shops = self._shop_repo.load_shops()
@@ -120,6 +125,10 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids: set[str] = set()
         self.discovered_recipe_ids: set[str] = set()
         self.discovered_recipe_book_ids: set[str] = set()
+        self.facility_levels: dict[str, int] = {}
+        self.facility_unlocked_recipe_ids: set[str] = set()
+        self.facility_unlocked_shop_stock_ids: set[str] = set()
+        self.turn_in_completion_count: int = 0
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -141,7 +150,12 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids = set()
         self.discovered_recipe_ids = set()
         self.discovered_recipe_book_ids = set()
+        self.facility_levels = {}
+        self.facility_unlocked_recipe_ids = set()
+        self.facility_unlocked_shop_stock_ids = set()
+        self.turn_in_completion_count = 0
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
+        self._initialize_facility_state()
         self._evaluate_recipe_unlocks()
         self._refresh_all_quest_objective_flags()
         self.last_event_id = "event.system.new_game_intro"
@@ -179,9 +193,19 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids = set(crafting_meta.get("unlocked_recipe_ids", []))
         self.discovered_recipe_ids = set(crafting_meta.get("discovered_recipe_ids", []))
         self.discovered_recipe_book_ids = set(crafting_meta.get("discovered_recipe_book_ids", []))
+        facility_meta = save_data.meta.get("facility_state", {})
+        self.facility_levels = {
+            str(facility_id): int(level)
+            for facility_id, level in facility_meta.get("facility_levels", {}).items()
+        }
+        self.facility_unlocked_recipe_ids = set(facility_meta.get("unlocked_recipe_ids", []))
+        self.facility_unlocked_shop_stock_ids = set(facility_meta.get("unlocked_shop_stock_ids", []))
+        self.turn_in_completion_count = int(facility_meta.get("turn_in_completion_count", 0))
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
+        self._initialize_facility_state()
+        self._evaluate_facility_progression()
         self._evaluate_recipe_unlocks()
         self._refresh_all_quest_objective_flags()
         return True, "セーブデータをロードしました。"
@@ -347,6 +371,7 @@ class PlayableSliceApplication:
         self.quest_session.quest_service.consume_turn_in_items(self.inventory_state, turn_in_plan)
         logs = self.quest_session.quest_service.apply_turn_in_progress(state, turn_in_plan)
         self._refresh_quest_objective_flags(quest_id)
+        logs.extend(self._evaluate_facility_progression())
         if auto_complete and state.status == QuestStatus.READY_TO_COMPLETE:
             logs.extend(self._complete_quest(quest_id))
         self.last_event_id = f"event.system.quest_turn_in:{quest_id}"
@@ -378,6 +403,12 @@ class PlayableSliceApplication:
                     "unlocked_recipe_ids": sorted(self.unlocked_recipe_ids),
                     "discovered_recipe_ids": sorted(self.discovered_recipe_ids),
                     "discovered_recipe_book_ids": sorted(self.discovered_recipe_book_ids),
+                },
+                "facility_state": {
+                    "facility_levels": dict(sorted(self.facility_levels.items())),
+                    "unlocked_recipe_ids": sorted(self.facility_unlocked_recipe_ids),
+                    "unlocked_shop_stock_ids": sorted(self.facility_unlocked_shop_stock_ids),
+                    "turn_in_completion_count": self.turn_in_completion_count,
                 },
             },
         )
@@ -602,8 +633,14 @@ class PlayableSliceApplication:
         if not ok or shop is None:
             return [f"shop_failed:{message}"]
 
-        lines = [f"shop:{shop.shop_id}:{shop.name}", f"gold:{self.inventory_state.get('gold', 0)}"]
-        for entry in shop.entries:
+        available_entries = self._available_shop_entries(shop)
+        shop_level = self.facility_levels.get("facility.hub.general_store", 0)
+        lines = [
+            f"shop:{shop.shop_id}:{shop.name}",
+            f"shop_facility_level:facility.hub.general_store:{shop_level}",
+            f"gold:{self.inventory_state.get('gold', 0)}",
+        ]
+        for entry in available_entries:
             item_name = self._item_definitions.get(entry.item_id, {}).get("name", entry.item_id)
             lines.append(
                 f"shop_item:{entry.item_id}:{item_name}:price={entry.price}:stock_type={entry.stock_type}"
@@ -611,6 +648,21 @@ class PlayableSliceApplication:
         return lines
 
     def buy_item(self, item_id: str, quantity: int = 1, shop_id: str = BASE_SHOP_ID) -> list[str]:
+        shop = self._shops.get(shop_id)
+        if shop is None:
+            return [f"purchase_failed:shop_not_found:{shop_id}"]
+        sold_item_ids = {entry.item_id for entry in shop.entries}
+        if item_id not in sold_item_ids:
+            result = self._shop_service.purchase(
+                inventory_state=self.inventory_state,
+                shop_id=shop_id,
+                item_id=item_id,
+                quantity=quantity,
+            )
+            return [result.message]
+        available_item_ids = {entry.item_id for entry in self._available_shop_entries(shop)}
+        if item_id not in available_item_ids:
+            return [f"purchase_failed:shop_stock_locked:{shop_id}:{item_id}"]
         result = self._shop_service.purchase(
             inventory_state=self.inventory_state,
             shop_id=shop_id,
@@ -620,7 +672,11 @@ class PlayableSliceApplication:
         return [result.message]
 
     def crafting_recipe_lines(self) -> list[str]:
-        lines = ["crafting:recipes"]
+        workshop_level = self.facility_levels.get("facility.hub.workshop", 0)
+        lines = [
+            "crafting:recipes",
+            f"workshop_rank:facility.hub.workshop:{workshop_level}",
+        ]
         inventory_items = self.inventory_state.get("items", {})
         statuses = self._recipe_unlock_service.build_availability(
             recipes=self._crafting_recipes,
@@ -640,29 +696,45 @@ class PlayableSliceApplication:
                 f"{req.item_id}:{req.owned}/{req.required}" for req in resolution.required_materials
             )
             discovery_state = "発見済み" if recipe_id in self.discovered_recipe_ids else "未発見"
-            unlock_state = "解放済み" if status.unlocked else "未解放"
-            material_state = "素材充足" if status.can_craft else "素材不足"
-            lock_reason = f":lock_reason={status.lock_reason}" if not status.unlocked else ""
+            facility_unlocked = self._is_recipe_unlocked_by_facility(recipe_id)
+            unlock_state = "解放済み" if status.unlocked and facility_unlocked else "未解放"
+            can_craft = status.unlocked and facility_unlocked and resolution.can_craft
+            material_state = "素材充足" if can_craft else "素材不足"
+            lock_reason_code = status.lock_reason
+            if status.unlocked and not facility_unlocked:
+                lock_reason_code = "required_workshop_rank_missing"
+            lock_reason = f":lock_reason={lock_reason_code}" if not can_craft else ""
             lines.append(
                 f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:discovery={discovery_state}:unlock={unlock_state}:"
-                f"materials={material_state}:can_craft={status.unlocked and resolution.can_craft}:"
+                f"materials={material_state}:can_craft={can_craft}:"
                 f"ingredients={ingredients}:outputs={outputs}{lock_reason}"
             )
         return lines
 
     def workshop_recipe_lines(self, workshop_npc_id: str) -> list[str]:
-        lines = [f"workshop_npc:{workshop_npc_id}:recipe_status"]
+        workshop_level = self.facility_levels.get("facility.hub.workshop", 0)
+        lines = [
+            f"workshop_npc:{workshop_npc_id}:recipe_status",
+            f"workshop_rank:facility.hub.workshop:{workshop_level}",
+        ]
         for recipe_id, recipe in sorted(self._crafting_recipes.items()):
             discovered = recipe_id in self.discovered_recipe_ids
             unlocked = recipe_id in self.unlocked_recipe_ids
+            facility_unlocked = self._is_recipe_unlocked_by_facility(recipe_id)
             resolution = self._crafting_service.resolve(
                 recipe=recipe,
                 inventory_items=self.inventory_state.get("items", {}),
             )
             discovery_state = "発見済み" if discovered else "未発見"
-            craft_state = "作成可能" if unlocked and resolution.can_craft else "素材不足"
+            if not unlocked:
+                craft_state = "未解放"
+            elif not facility_unlocked:
+                craft_state = "工房ランク不足"
+            else:
+                craft_state = "作成可能" if resolution.can_craft else "素材不足"
             lines.append(
-                f"workshop_recipe:{recipe_id}:{recipe.name}:discovery={discovery_state}:unlocked={unlocked}:craft={craft_state}"
+                f"workshop_recipe:{recipe_id}:{recipe.name}:discovery={discovery_state}:unlocked={unlocked}:"
+                f"facility_unlock={facility_unlocked}:craft={craft_state}"
             )
         return lines
 
@@ -672,6 +744,8 @@ class PlayableSliceApplication:
             return [f"craft_failed:recipe_not_found:{recipe_id}"]
         if recipe_id not in self.unlocked_recipe_ids:
             return [f"craft_failed:recipe_locked:{recipe_id}"]
+        if not self._is_recipe_unlocked_by_facility(recipe_id):
+            return [f"craft_failed:required_workshop_rank:recipe={recipe_id}"]
         result = self._crafting_service.craft(recipe=recipe, inventory_state=self.inventory_state, count=count)
         lines = [result.message]
         if not result.success:
@@ -1133,6 +1207,7 @@ class PlayableSliceApplication:
 
         self.quest_session.quest_service.complete(state)
         self._refresh_quest_objective_flags(quest_id)
+        self._increment_turn_in_completion_count(quest_id)
         quest_reward = self.quest_session.quest_service.definitions[quest_id].reward
         logs = [f"quest_completed:{quest_id}"]
         logs.extend(
@@ -1150,6 +1225,7 @@ class PlayableSliceApplication:
             logs.append(f"flag_set:{quest_reward.completion_flag}")
         for unlocked in self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags):
             logs.append(f"location_unlocked:{unlocked}")
+        logs.extend(self._evaluate_facility_progression())
         logs.extend(self._evaluate_recipe_unlocks())
         if state.repeat_ready:
             logs.append(f"quest_repeat_ready:manual_reaccept:{quest_id}")
@@ -1245,3 +1321,79 @@ class PlayableSliceApplication:
             self.quest_session.world_flags.add(f"flag.quest.objective.active:{quest_id}:{active_objective_id}")
         for objective_id in self.quest_session.quest_service.completed_objective_ids(state):
             self.quest_session.world_flags.add(f"flag.quest.objective.completed:{quest_id}:{objective_id}")
+
+    def _initialize_facility_state(self) -> None:
+        if self.quest_session is None:
+            return
+        for facility_id, definition in self._facility_definitions.items():
+            current_level = int(self.facility_levels.get(facility_id, 0))
+            if current_level <= 0:
+                current_level = 1
+                self.facility_levels[facility_id] = current_level
+            for level_definition in definition.levels:
+                if level_definition.level > current_level:
+                    break
+                for recipe_id in level_definition.unlocks.recipe_ids:
+                    self.facility_unlocked_recipe_ids.add(recipe_id)
+                for stock_id in level_definition.unlocks.shop_stock_ids:
+                    self.facility_unlocked_shop_stock_ids.add(stock_id)
+                for flag_id in level_definition.unlocks.dialogue_flags:
+                    self.quest_session.world_flags.add(flag_id)
+
+    def _evaluate_facility_progression(self) -> list[str]:
+        if self.quest_session is None or not self._facility_definitions:
+            return []
+        context = FacilityProgressContext(
+            completed_quest_ids=self._completed_quest_ids(),
+            world_flags=self.quest_session.world_flags,
+            turn_in_count=self.turn_in_completion_count,
+        )
+        level_up_results = self._facility_progress_service.evaluate_level_up(
+            definitions=self._facility_definitions,
+            facility_levels=self.facility_levels,
+            context=context,
+        )
+        return self._facility_progress_service.apply_unlocks(
+            level_up_results=level_up_results,
+            unlocked_recipe_ids=self.facility_unlocked_recipe_ids,
+            unlocked_shop_stock_ids=self.facility_unlocked_shop_stock_ids,
+            world_flags=self.quest_session.world_flags,
+        )
+
+    def _is_recipe_unlocked_by_facility(self, recipe_id: str) -> bool:
+        if recipe_id in self.facility_unlocked_recipe_ids:
+            return True
+        return recipe_id not in self._facility_recipe_lock_targets()
+
+    def _facility_recipe_lock_targets(self) -> set[str]:
+        recipe_ids: set[str] = set()
+        for definition in self._facility_definitions.values():
+            for level_definition in definition.levels:
+                recipe_ids.update(level_definition.unlocks.recipe_ids)
+        return recipe_ids
+
+    def _available_shop_entries(self, shop) -> tuple:
+        lock_targets = self._facility_shop_lock_targets()
+        if not lock_targets:
+            return shop.entries
+        return tuple(
+            entry
+            for entry in shop.entries
+            if entry.item_id not in lock_targets or entry.item_id in self.facility_unlocked_shop_stock_ids
+        )
+
+    def _facility_shop_lock_targets(self) -> set[str]:
+        stock_ids: set[str] = set()
+        for definition in self._facility_definitions.values():
+            for level_definition in definition.levels:
+                stock_ids.update(level_definition.unlocks.shop_stock_ids)
+        return stock_ids
+
+    def _increment_turn_in_completion_count(self, quest_id: str) -> None:
+        if self.quest_session is None:
+            return
+        definition = self.quest_session.quest_service.definitions.get(quest_id)
+        if definition is None:
+            return
+        if any(objective.objective_type == "turn_in_items" for objective in definition.objectives):
+            self.turn_in_completion_count += 1
