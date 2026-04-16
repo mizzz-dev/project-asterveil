@@ -37,7 +37,7 @@ class CraftingSliceTests(unittest.TestCase):
                 "item.consumable.focus_drop",
                 "equip.weapon.memory_edge",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge"},
+            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem"},
         )
         self.assertIn("recipe.craft.memory_tonic", recipes)
         self.assertIn("recipe.craft.memory_edge", recipes)
@@ -57,7 +57,7 @@ class CraftingSliceTests(unittest.TestCase):
         repo = CraftingMasterDataRepository(Path("data/master"))
         service = RecipeDiscoveryService(
             repo.load_recipe_discoveries(),
-            valid_recipe_ids={"recipe.craft.tidal_tonic", "recipe.craft.memory_edge"},
+            valid_recipe_ids={"recipe.craft.tidal_tonic", "recipe.craft.memory_edge", "recipe.craft.tidal_guard_talisman"},
         )
         discovered_recipe_ids: set[str] = set()
         discovered_book_ids: set[str] = set()
@@ -91,7 +91,7 @@ class CraftingSliceTests(unittest.TestCase):
                 "item.consumable.memory_tonic",
                 "item.consumable.focus_drop",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge"},
+            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem"},
         )
         unlock_service = RecipeUnlockService()
         unlocked_recipe_ids: set[str] = set()

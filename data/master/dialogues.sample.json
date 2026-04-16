@@ -725,5 +725,78 @@
     "lines": [
       "採取から納品までの流れは完璧だった。次は応用課題に進めるぞ。"
     ]
+  },
+  {
+    "entry_id": "dialogue.workshop.rank2_blueprint",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 740,
+    "condition": {
+      "required_flags": [
+        "flag.hub.facility.workshop.level2"
+      ],
+      "excluded_flags": [
+        "flag.hub.facility.workshop.rank2_blueprint_seen"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.rank2_intro",
+        "speaker": "npc.astel.workshop_master",
+        "line": "納品のおかげで工房を増強できた。新しい設計図を見てくれ。",
+        "choices": [
+          {
+            "choice_id": "choice.rank2_learn",
+            "text": "設計図を受け取る",
+            "next_step_id": "step.rank2_done",
+            "set_flags": [
+              "flag.hub.facility.workshop.rank2_blueprint_seen"
+            ],
+            "effects": [
+              {
+                "action_type": "unlock_recipe",
+                "params": {
+                  "source_id": "dialogue.workshop.rank2_blueprint"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.rank2_done",
+        "speaker": "npc.astel.workshop_master",
+        "line": "これで潮守の護符を鍛造できるはずだ。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.rank2_followup",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 730,
+    "condition": {
+      "required_flags": [
+        "flag.hub.facility.workshop.level2"
+      ]
+    },
+    "lines": [
+      "工房ランクは2だ。潮守の護符鍛造で街の守りを固めよう。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.rank1_hint",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 120,
+    "condition": {
+      "required_flags": [
+        "flag.hub.facility.workshop.level1"
+      ],
+      "excluded_flags": [
+        "flag.hub.facility.workshop.level2"
+      ]
+    },
+    "lines": [
+      "今の工房ランクは1だ。納品依頼を片づければ設備を増強できる。"
+    ]
   }
 ]

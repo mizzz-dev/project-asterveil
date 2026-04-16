@@ -1,0 +1,85 @@
+[
+  {
+    "facility_id": "facility.hub.workshop",
+    "facility_type": "workshop",
+    "levels": [
+      {
+        "level": 1,
+        "description": "基礎設備。通常調合と鍛造に対応。",
+        "requirements": {},
+        "unlocks": {
+          "recipe_ids": [
+            "recipe.craft.memory_tonic",
+            "recipe.craft.memory_edge",
+            "recipe.craft.herbal_focus_drop",
+            "recipe.craft.tidal_tonic"
+          ],
+          "dialogue_flags": [
+            "flag.hub.facility.workshop.level1"
+          ]
+        }
+      },
+      {
+        "level": 2,
+        "description": "納品設備を増強し、高難度の守護具レシピを扱える。",
+        "requirements": {
+          "required_completed_quest_ids": [
+            "quest.ch01.workshop_supply_chain"
+          ],
+          "required_turn_in_count": 1
+        },
+        "unlocks": {
+          "recipe_ids": [
+            "recipe.craft.tidal_guard_talisman"
+          ],
+          "dialogue_flags": [
+            "flag.hub.facility.workshop.level2"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "facility_id": "facility.hub.general_store",
+    "facility_type": "shop",
+    "levels": [
+      {
+        "level": 1,
+        "description": "生活必需品の在庫のみ。",
+        "requirements": {},
+        "unlocks": {
+          "shop_stock_ids": [
+            "item.consumable.mini_potion",
+            "item.consumable.focus_drop",
+            "item.consumable.antidote_leaf",
+            "equip.weapon.iron_blade",
+            "equip.armor.leather_jacket",
+            "equip.armor.antivenom_charm",
+            "item.material.iron_fragment"
+          ],
+          "dialogue_flags": [
+            "flag.hub.facility.shop.level1"
+          ]
+        }
+      },
+      {
+        "level": 2,
+        "description": "護衛装備の取り扱いを開始。",
+        "requirements": {
+          "required_completed_quest_ids": [
+            "quest.ch01.memory_fragment_delivery"
+          ]
+        },
+        "unlocks": {
+          "shop_stock_ids": [
+            "equip.armor.vanguard_emblem",
+            "equip.weapon.prayer_staff"
+          ],
+          "dialogue_flags": [
+            "flag.hub.facility.shop.level2"
+          ]
+        }
+      }
+    ]
+  }
+]
