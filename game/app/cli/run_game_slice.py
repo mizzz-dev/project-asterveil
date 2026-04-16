@@ -204,6 +204,33 @@ def _run_treasure_flow(app: PlayableSliceApplication) -> list[str]:
     return app.open_treasure_node(selected)
 
 
+def _run_field_event_flow(app: PlayableSliceApplication) -> list[str]:
+    event_lines = app.field_event_lines()
+    for line in event_lines:
+        print(f"- {line}")
+    choices = [("cancel", "探索イベントを実行しない")]
+    choices.extend(app.executable_field_event_choices())
+    if len(choices) == 1:
+        return ["field_event_unavailable:no_executable_event"]
+    selected_event_id = _choose(choices)
+    if selected_event_id == "cancel":
+        return ["field_event_cancelled"]
+
+    choice_lines = app.field_event_choice_lines(selected_event_id)
+    for line in choice_lines:
+        print(f"- {line}")
+    event_choice_options: list[tuple[str, str]] = [("cancel", "このイベントをやめる")]
+    for line in choice_lines:
+        if not line.startswith("field_event_choice:"):
+            continue
+        _, choice_id, text = line.split(":", 2)
+        event_choice_options.append((choice_id, text))
+    selected_choice_id = _choose(event_choice_options)
+    if selected_choice_id == "cancel":
+        return ["field_choice_cancelled"]
+    return app.resolve_field_event_choice(selected_event_id, selected_choice_id)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -253,6 +280,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_gathering_flow(app)
             elif selected == "open_treasure":
                 logs = _run_treasure_flow(app)
+            elif selected == "field_events":
+                logs = _run_field_event_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:
