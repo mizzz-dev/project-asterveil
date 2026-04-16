@@ -99,6 +99,11 @@
         "recipe_book.astel.tidal_tonic_notes"
       ]
     },
+    "treasure_state": {
+      "opened_reward_node_ids": [
+        "reward.treasure.astel_storehouse_chest"
+      ]
+    },
     "facility_state": {
       "facility_levels": {
         "facility.hub.workshop": 2,

@@ -1,0 +1,82 @@
+[
+  {
+    "reward_node_id": "reward.treasure.astel_storehouse_chest",
+    "location_id": "location.town.astel",
+    "name": "港裏の補給箱",
+    "node_type": "treasure_chest",
+    "description": "港の裏路地に置かれた小型の補給箱。",
+    "contents": [
+      {
+        "content_type": "item",
+        "item_id": "item.consumable.focus_drop",
+        "quantity": 1
+      },
+      {
+        "content_type": "item",
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      }
+    ],
+    "one_time": true,
+    "message_on_open": "補給箱からフォーカスドロップと鉄片を見つけた。"
+  },
+  {
+    "reward_node_id": "reward.treasure.tidal_flats_drift_chest",
+    "location_id": "location.field.tidal_flats",
+    "name": "打ち上げ木箱",
+    "node_type": "treasure_chest",
+    "description": "潮だまりの端で半分埋もれている木箱。",
+    "contents": [
+      {
+        "content_type": "equipment",
+        "equipment_id": "equip.weapon.iron_blade",
+        "quantity": 1
+      },
+      {
+        "content_type": "item",
+        "item_id": "item.consumable.mini_potion",
+        "quantity": 1
+      }
+    ],
+    "one_time": true,
+    "message_on_open": "木箱の中にアイアンブレードが入っていた。"
+  },
+  {
+    "reward_node_id": "reward.discovery.sunken_recipe_notes",
+    "location_id": "location.dungeon.sunken_storehouse",
+    "name": "濡れた調合メモ",
+    "node_type": "discoverable_cache",
+    "description": "古い棚の裏に挟まっているメモ束。",
+    "contents": [
+      {
+        "content_type": "recipe_book",
+        "recipe_book_id": "item.key.recipe_book.tidal_tonic_notes",
+        "quantity": 1
+      }
+    ],
+    "one_time": true,
+    "required_flags": [
+      "flag.ch01.port_record_restored"
+    ],
+    "message_on_open": "潮香トニックの調合メモを発見した。"
+  },
+  {
+    "reward_node_id": "reward.discovery.astel_locked_cache",
+    "location_id": "location.town.astel",
+    "name": "封鎖倉庫の置き箱",
+    "node_type": "discoverable_cache",
+    "description": "港湾調査後に開封許可が出る保管箱。",
+    "contents": [
+      {
+        "content_type": "item",
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 2
+      }
+    ],
+    "one_time": true,
+    "required_flags": [
+      "flag.ch01.port_record_restored"
+    ],
+    "message_on_open": "封鎖倉庫の保管箱から解毒草を受け取った。"
+  }
+]
