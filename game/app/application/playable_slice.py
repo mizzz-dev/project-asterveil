@@ -21,7 +21,9 @@ from game.gathering.domain.services import GatheringRespawnService, GatheringSer
 from game.gathering.infrastructure.master_data_repository import GatheringNodeMasterDataRepository
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
+from game.location.domain.treasure_services import TreasureService
 from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
+from game.location.infrastructure.treasure_repository import TreasureMasterDataRepository
 from game.quest.application.session import QuestSliceSession
 from game.quest.cli.run_quest_slice import build_battle_executor
 from game.quest.domain.entities import BattleResult, QuestBoardStatus, QuestState, QuestStatus
@@ -58,6 +60,7 @@ class PlayableSliceApplication:
         self._facility_repo = FacilityMasterDataRepository(master_root)
         self._crafting_repo = CraftingMasterDataRepository(master_root)
         self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
+        self._treasure_repo = TreasureMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
@@ -109,8 +112,14 @@ class PlayableSliceApplication:
         self._travel_service = TravelService(self._location_definitions, hub_location_id=HUB_LOCATION_ID)
         self._gathering_service = GatheringService()
         self._gathering_respawn_service = GatheringRespawnService()
+        self._treasure_service = TreasureService()
         self._gathering_nodes = self._gathering_repo.load_nodes(
             valid_item_ids=set(self._item_definitions),
+            valid_location_ids=set(self._location_definitions),
+        )
+        self._treasure_nodes = self._treasure_repo.load_nodes(
+            valid_item_ids=set(self._item_definitions),
+            valid_equipment_ids=set(self._equipment_definitions),
             valid_location_ids=set(self._location_definitions),
         )
         self._dialogue_service = DialogueService(self._dialogue_event_repo.load_npc_dialogues())
@@ -125,6 +134,7 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids: set[str] = set()
         self.discovered_recipe_ids: set[str] = set()
         self.discovered_recipe_book_ids: set[str] = set()
+        self.opened_treasure_node_ids: set[str] = set()
         self.facility_levels: dict[str, int] = {}
         self.facility_unlocked_recipe_ids: set[str] = set()
         self.facility_unlocked_shop_stock_ids: set[str] = set()
@@ -150,6 +160,7 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids = set()
         self.discovered_recipe_ids = set()
         self.discovered_recipe_book_ids = set()
+        self.opened_treasure_node_ids = set()
         self.facility_levels = {}
         self.facility_unlocked_recipe_ids = set()
         self.facility_unlocked_shop_stock_ids = set()
@@ -193,6 +204,8 @@ class PlayableSliceApplication:
         self.unlocked_recipe_ids = set(crafting_meta.get("unlocked_recipe_ids", []))
         self.discovered_recipe_ids = set(crafting_meta.get("discovered_recipe_ids", []))
         self.discovered_recipe_book_ids = set(crafting_meta.get("discovered_recipe_book_ids", []))
+        treasure_meta = save_data.meta.get("treasure_state", {})
+        self.opened_treasure_node_ids = self._restore_opened_treasure_node_ids(treasure_meta)
         facility_meta = save_data.meta.get("facility_state", {})
         self.facility_levels = {
             str(facility_id): int(level)
@@ -225,6 +238,8 @@ class PlayableSliceApplication:
             ActionItem("quest_board", "クエストボードを見る"),
             ActionItem("move", "移動する"),
             ActionItem("current_location", "現在地を確認する"),
+            ActionItem("treasure_nodes", "探索報酬を確認する"),
+            ActionItem("open_treasure", "探索報酬を調べる"),
             ActionItem("gather_nodes", "採取ポイント確認"),
             ActionItem("gather", "採取する"),
             ActionItem("talk_npc", "NPCと話す"),
@@ -258,6 +273,10 @@ class PlayableSliceApplication:
             return self.travel_options_lines()
         if action_key == "current_location":
             return self.current_location_lines()
+        if action_key == "treasure_nodes":
+            return self.treasure_node_lines()
+        if action_key == "open_treasure":
+            return ["treasure_open_failed:selection_required"]
         if action_key == "gather_nodes":
             return self.gathering_node_lines()
         if action_key == "gather":
@@ -404,6 +423,9 @@ class PlayableSliceApplication:
                     "discovered_recipe_ids": sorted(self.discovered_recipe_ids),
                     "discovered_recipe_book_ids": sorted(self.discovered_recipe_book_ids),
                 },
+                "treasure_state": {
+                    "opened_reward_node_ids": sorted(self.opened_treasure_node_ids),
+                },
                 "facility_state": {
                     "facility_levels": dict(sorted(self.facility_levels.items())),
                     "unlocked_recipe_ids": sorted(self.facility_unlocked_recipe_ids),
@@ -446,11 +468,90 @@ class PlayableSliceApplication:
             world_flags=self.quest_session.world_flags if self.quest_session else set(),
             gathered_node_ids=self.gathered_node_ids,
         )
+        treasure_statuses = self._treasure_service.list_nodes_for_location(
+            nodes=self._treasure_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags if self.quest_session else set(),
+            opened_node_ids=self.opened_treasure_node_ids,
+            facility_levels=self.facility_levels,
+        )
         return [
             f"current_location:{definition.location_id}:{definition.name}:type={definition.location_type}",
             f"location_description:{definition.description}",
+            f"treasure_nodes:total={len(treasure_statuses)}:openable={sum(1 for status in treasure_statuses if status.can_open)}",
             f"gathering_nodes:total={len(node_statuses)}:available={sum(1 for status in node_statuses if status.can_gather)}",
         ]
+
+    def treasure_node_lines(self) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._treasure_service.list_nodes_for_location(
+            nodes=self._treasure_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            opened_node_ids=self.opened_treasure_node_ids,
+            facility_levels=self.facility_levels,
+        )
+        if not statuses:
+            return [f"treasure_node:none:location={self.location_state.current_location_id}"]
+        lines = [f"treasure_nodes:location={self.location_state.current_location_id}"]
+        for status in statuses:
+            state = "未開封" if status.can_open else ("開封済み" if status.is_opened else "条件未達")
+            lines.append(
+                f"treasure_node:{status.reward_node_id}:{status.name}:type={status.node_type}:"
+                f"can_open={status.can_open}:reason={status.reason_code}:state={state}"
+            )
+        return lines
+
+    def open_treasure_node(self, reward_node_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        node = self._treasure_nodes.get(reward_node_id)
+        if node is None:
+            return [f"treasure_open_failed:node_not_found:{reward_node_id}"]
+        result = self._treasure_service.open_node(
+            node=node,
+            current_location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            opened_node_ids=self.opened_treasure_node_ids,
+            facility_levels=self.facility_levels,
+        )
+        if not result.success:
+            if result.code == "already_opened":
+                return [f"treasure_already_opened:{reward_node_id}"]
+            return [result.message]
+        self._treasure_service.apply_to_inventory(
+            inventory_state=self.inventory_state,
+            gained_items=result.gained_items,
+        )
+        lines = [result.message]
+        if result.message_on_open:
+            lines.append(f"treasure_open_message:{result.reward_node_id}:{result.message_on_open}")
+        for item_id, amount in sorted(result.gained_items.items()):
+            lines.append(f"treasure_gained:{item_id}:x{amount}")
+        recipe_logs = self._apply_recipe_discovery_for_items(set(result.gained_items))
+        lines.extend(recipe_logs)
+        for line in recipe_logs:
+            if line.startswith("recipe_discovered:") or line.startswith("recipe_book_discovered:"):
+                lines.append(f"recipe_discovered_from_treasure:{reward_node_id}:{line}")
+        return lines
+
+    def openable_treasure_node_choices(self) -> list[tuple[str, str]]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        statuses = self._treasure_service.list_nodes_for_location(
+            nodes=self._treasure_nodes,
+            location_id=self.location_state.current_location_id,
+            world_flags=self.quest_session.world_flags,
+            opened_node_ids=self.opened_treasure_node_ids,
+            facility_levels=self.facility_levels,
+        )
+        choices: list[tuple[str, str]] = []
+        for status in statuses:
+            if not status.can_open:
+                continue
+            choices.append((status.reward_node_id, f"{status.name} ({status.node_type})"))
+        return choices
 
     def gathering_node_lines(self) -> list[str]:
         if self.quest_session is None:
@@ -972,6 +1073,13 @@ class PlayableSliceApplication:
         if unknown_node_ids:
             raise ValueError(f"save_data has unknown gathered_node_ids={unknown_node_ids}")
         return gathered_node_ids
+
+    def _restore_opened_treasure_node_ids(self, treasure_meta: dict) -> set[str]:
+        opened_node_ids = {str(node_id) for node_id in treasure_meta.get("opened_reward_node_ids", [])}
+        unknown_node_ids = sorted(node_id for node_id in opened_node_ids if node_id not in self._treasure_nodes)
+        if unknown_node_ids:
+            raise ValueError(f"save_data has unknown opened_reward_node_ids={unknown_node_ids}")
+        return opened_node_ids
 
     def _run_on_enter_location_events(self, location_id: str) -> list[str]:
         if self.quest_session is None:

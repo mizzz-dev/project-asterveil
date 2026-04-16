@@ -190,6 +190,20 @@ def _run_gathering_flow(app: PlayableSliceApplication) -> list[str]:
     return app.gather_from_node(selected)
 
 
+def _run_treasure_flow(app: PlayableSliceApplication) -> list[str]:
+    node_lines = app.treasure_node_lines()
+    for line in node_lines:
+        print(f"- {line}")
+    choices = [("cancel", "調べない")]
+    choices.extend(app.openable_treasure_node_choices())
+    if len(choices) == 1:
+        return ["treasure_open_failed:no_openable_node"]
+    selected = _choose(choices)
+    if selected == "cancel":
+        return ["treasure_open_cancelled"]
+    return app.open_treasure_node(selected)
+
+
 def run_playable_vertical_slice(save_path: Path) -> int:
     app = PlayableSliceApplication(master_root=Path("data/master"), save_file_path=save_path)
 
@@ -237,6 +251,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_talk_npc_flow(app)
             elif selected == "gather":
                 logs = _run_gathering_flow(app)
+            elif selected == "open_treasure":
+                logs = _run_treasure_flow(app)
             else:
                 logs = app.perform_action(selected)
             for log in logs:
