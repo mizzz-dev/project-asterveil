@@ -813,6 +813,72 @@
     ]
   },
   {
+    "entry_id": "dialogue.workshop.rank3_blueprint",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 760,
+    "condition": {
+      "required_flags": [
+        "flag.workshop.rank.3",
+        "flag.miniboss.tidal_flats.guardian_defeated"
+      ],
+      "excluded_flags": [
+        "flag.workshop.rank.3_blueprint_seen"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.rank3_intro",
+        "speaker": "npc.astel.workshop_master",
+        "line": "守護核まで持ち帰ったか。上位鍛造の設計図を渡そう。",
+        "choices": [
+          {
+            "choice_id": "choice.rank3_learn",
+            "text": "上位設計図を受け取る",
+            "next_step_id": "step.rank3_done",
+            "set_flags": [
+              "flag.workshop.rank.3_blueprint_seen"
+            ],
+            "effects": [
+              {
+                "action_type": "unlock_recipe",
+                "params": {
+                  "source_id": "dialogue.workshop.rank3_blueprint"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step_id": "step.rank3_done",
+        "speaker": "npc.astel.workshop_master",
+        "line": "深海繊維と守護核が揃えば、潮断の戦装が鍛造できる。"
+      }
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.rank3_hint",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 735,
+    "condition": {
+      "required_flags": [
+        "flag.workshop.rank.2"
+      ],
+      "excluded_flags": [
+        "flag.workshop.rank.3"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.rank3_hint",
+        "speaker": "npc.astel.workshop_master",
+        "line": "今の工房ランクでは上位鍛造は扱えない。納品依頼を積み重ねてランク3を目指してくれ。"
+      }
+    ]
+  },
+  {
     "entry_id": "dialogue.workshop.rank2_followup",
     "npc_id": "npc.astel.workshop_master",
     "priority": 730,
@@ -823,6 +889,25 @@
     },
     "lines": [
       "工房ランクは2だ。潮守の護符鍛造で街の守りを固めよう。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.rank3_followup",
+    "npc_id": "npc.astel.workshop_master",
+    "priority": 729,
+    "condition": {
+      "required_flags": [
+        "flag.workshop.rank.3",
+        "flag.workshop.rank.3_blueprint_seen"
+      ]
+    },
+    "lines": [],
+    "steps": [
+      {
+        "step_id": "step.rank3_followup",
+        "speaker": "npc.astel.workshop_master",
+        "line": "工房ランク3なら潮断の戦装を鍛造できる。守護核と深海繊維を忘れるな。"
+      }
     ]
   },
   {

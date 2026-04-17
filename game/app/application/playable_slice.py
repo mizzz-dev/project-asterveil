@@ -17,6 +17,7 @@ from game.app.infrastructure.dialogue_event_repository import DialogueEventMaste
 from game.app.infrastructure.facility_master_data_repository import FacilityMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.app.infrastructure.workshop_order_repository import WorkshopOrderMasterDataRepository
+from game.crafting.domain.entities import CraftingRecipeDefinition
 from game.crafting.domain.services import CraftingService, RecipeDiscoveryService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
 from game.gathering.domain.services import GatheringRespawnService, GatheringService
@@ -924,10 +925,10 @@ class PlayableSliceApplication:
         return [result.message]
 
     def crafting_recipe_lines(self) -> list[str]:
-        workshop_level = self.facility_levels.get("facility.hub.workshop", 0)
+        workshop_level = self.workshop_progress_state.level
         lines = [
             "crafting:recipes",
-            f"workshop_rank:facility.hub.workshop:{workshop_level}",
+            f"workshop_rank:workshop:{workshop_level}",
         ]
         inventory_items = self.inventory_state.get("items", {})
         statuses = self._recipe_unlock_service.build_availability(
@@ -950,45 +951,65 @@ class PlayableSliceApplication:
             discovery_state = "発見済み" if recipe_id in self.discovered_recipe_ids else "未発見"
             facility_unlocked = self._is_recipe_unlocked_by_facility(recipe_id)
             workshop_unlocked = self._is_recipe_unlocked_by_workshop_rank(recipe_id)
-            unlock_state = "解放済み" if status.unlocked and facility_unlocked and workshop_unlocked else "未解放"
-            can_craft = status.unlocked and facility_unlocked and workshop_unlocked and resolution.can_craft
-            material_state = "素材充足" if can_craft else "素材不足"
+            discovery_requirement_met = self._is_recipe_discovery_requirement_met(recipe)
+            unlock_state = (
+                "解放済み"
+                if status.unlocked and facility_unlocked and workshop_unlocked and discovery_requirement_met
+                else "未解放"
+            )
+            can_craft = (
+                status.unlocked and facility_unlocked and workshop_unlocked and discovery_requirement_met and resolution.can_craft
+            )
+            material_state = "素材充足" if resolution.can_craft else "素材不足"
+            state_tag = self._crafting_state_tag(
+                unlocked=status.unlocked,
+                discovery_requirement_met=discovery_requirement_met,
+                rank_unlocked=(facility_unlocked and workshop_unlocked),
+                material_ready=resolution.can_craft,
+            )
             lock_reason_code = status.lock_reason
             if status.unlocked and (not facility_unlocked or not workshop_unlocked):
                 lock_reason_code = "required_workshop_rank_missing"
+            if status.unlocked and not discovery_requirement_met:
+                lock_reason_code = "required_recipe_discovery_missing"
             lock_reason = f":lock_reason={lock_reason_code}" if not can_craft else ""
             lines.append(
-                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:discovery={discovery_state}:unlock={unlock_state}:"
+                f"craft_recipe:{recipe_id}:{recipe.name}:category={recipe.category}:tier={recipe.recipe_tier}:"
+                f"required_workshop_level={recipe.required_workshop_level}:discovery={discovery_state}:unlock={unlock_state}:"
                 f"materials={material_state}:can_craft={can_craft}:"
-                f"ingredients={ingredients}:outputs={outputs}{lock_reason}"
+                f"status={state_tag}:ingredients={ingredients}:outputs={outputs}{lock_reason}"
             )
+            lines.append(f"requires_miniboss_material:{recipe_id}:{self._recipe_requires_miniboss_material(recipe)}")
+            if recipe.recipe_tier == "advanced" and status.unlocked and discovery_requirement_met:
+                lines.append(f"advanced_recipe_unlocked:{recipe_id}")
         return lines
 
     def workshop_recipe_lines(self, workshop_npc_id: str) -> list[str]:
-        workshop_level = self.facility_levels.get("facility.hub.workshop", 0)
+        workshop_level = self.workshop_progress_state.level
         lines = [
             f"workshop_npc:{workshop_npc_id}:recipe_status",
-            f"workshop_rank:facility.hub.workshop:{workshop_level}",
+            f"workshop_rank:workshop:{workshop_level}",
         ]
         for recipe_id, recipe in sorted(self._crafting_recipes.items()):
             discovered = recipe_id in self.discovered_recipe_ids
             unlocked = recipe_id in self.unlocked_recipe_ids
             facility_unlocked = self._is_recipe_unlocked_by_facility(recipe_id)
             workshop_unlocked = self._is_recipe_unlocked_by_workshop_rank(recipe_id)
+            discovery_requirement_met = self._is_recipe_discovery_requirement_met(recipe)
             resolution = self._crafting_service.resolve(
                 recipe=recipe,
                 inventory_items=self.inventory_state.get("items", {}),
             )
             discovery_state = "発見済み" if discovered else "未発見"
-            if not unlocked:
-                craft_state = "未解放"
-            elif not facility_unlocked or not workshop_unlocked:
-                craft_state = "工房ランク不足"
-            else:
-                craft_state = "作成可能" if resolution.can_craft else "素材不足"
+            craft_state = self._crafting_state_tag(
+                unlocked=unlocked,
+                discovery_requirement_met=discovery_requirement_met,
+                rank_unlocked=(facility_unlocked and workshop_unlocked),
+                material_ready=resolution.can_craft,
+            )
             lines.append(
                 f"workshop_recipe:{recipe_id}:{recipe.name}:discovery={discovery_state}:unlocked={unlocked}:"
-                f"facility_unlock={facility_unlocked}:rank_unlock={workshop_unlocked}:craft={craft_state}"
+                f"facility_unlock={facility_unlocked}:rank_unlock={workshop_unlocked}:tier={recipe.recipe_tier}:craft={craft_state}"
             )
         return lines
 
@@ -1000,10 +1021,15 @@ class PlayableSliceApplication:
             return [f"craft_failed:recipe_locked:{recipe_id}"]
         if not self._is_recipe_unlocked_by_facility(recipe_id) or not self._is_recipe_unlocked_by_workshop_rank(recipe_id):
             return [f"craft_failed:required_workshop_rank:recipe={recipe_id}"]
+        if not self._is_recipe_discovery_requirement_met(recipe):
+            required = recipe.required_recipe_discovery or "unknown"
+            return [f"craft_failed:required_recipe_discovery:recipe={recipe_id}:required={required}"]
         result = self._crafting_service.craft(recipe=recipe, inventory_state=self.inventory_state, count=count)
         lines = [result.message]
         if not result.success:
             return lines
+        if recipe.recipe_tier == "advanced":
+            lines.append(f"advanced_crafting_success:{recipe_id}")
         if result.crafted:
             for item_id, amount in sorted(result.crafted.items()):
                 lines.append(f"crafted_item:{item_id}:x{amount}")
@@ -1415,6 +1441,8 @@ class PlayableSliceApplication:
             recipe = self._crafting_recipes[recipe_id]
             unlock_message = recipe.unlock_message or f"recipe_unlocked:{recipe_id}"
             logs.append(f"recipe_unlocked:{recipe_id}:{unlock_message}")
+            if recipe.recipe_tier == "advanced":
+                logs.append(f"advanced_recipe_unlocked:{recipe_id}")
             self.discovered_recipe_ids.add(recipe_id)
         return logs
 
@@ -1797,11 +1825,40 @@ class PlayableSliceApplication:
         return lines
 
     def _is_recipe_unlocked_by_workshop_rank(self, recipe_id: str) -> bool:
-        return self._workshop_progress_service.is_recipe_unlocked(
+        recipe = self._crafting_recipes.get(recipe_id)
+        if recipe is None:
+            return False
+        unlocked_by_rank_table = self._workshop_progress_service.is_recipe_unlocked(
             recipe_id=recipe_id,
             state=self.workshop_progress_state,
             rank_definitions=self._workshop_rank_definitions,
         )
+        return unlocked_by_rank_table and self.workshop_progress_state.level >= recipe.required_workshop_level
+
+    def _is_recipe_discovery_requirement_met(self, recipe: CraftingRecipeDefinition) -> bool:
+        if not recipe.required_recipe_discovery:
+            return True
+        key = recipe.required_recipe_discovery
+        return key in self.discovered_recipe_ids or key in self.discovered_recipe_book_ids or key in self.unlocked_recipe_ids
+
+    def _recipe_requires_miniboss_material(self, recipe: CraftingRecipeDefinition) -> bool:
+        return any(".miniboss." in ingredient.item_id for ingredient in recipe.ingredients)
+
+    def _crafting_state_tag(
+        self,
+        *,
+        unlocked: bool,
+        discovery_requirement_met: bool,
+        rank_unlocked: bool,
+        material_ready: bool,
+    ) -> str:
+        if not unlocked or not discovery_requirement_met:
+            return "[未発見]"
+        if not rank_unlocked:
+            return "[工房ランク不足]"
+        if not material_ready:
+            return "[素材不足]"
+        return "[作成可能]"
 
     def _is_recipe_unlocked_by_facility(self, recipe_id: str) -> bool:
         if recipe_id in self.facility_unlocked_recipe_ids:

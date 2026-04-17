@@ -40,6 +40,7 @@ class FieldMinibossSliceTests(unittest.TestCase):
             valid_item_ids={
                 "item.key.recipe_book.tidal_tonic_notes",
                 "item.material.memory_shard",
+                "item.material.miniboss.guardian_core",
             },
             valid_encounter_ids=self.valid_encounter_ids,
         )
@@ -53,6 +54,7 @@ class FieldMinibossSliceTests(unittest.TestCase):
             valid_item_ids={
                 "item.key.recipe_book.tidal_tonic_notes",
                 "item.material.memory_shard",
+                "item.material.miniboss.guardian_core",
             },
             valid_encounter_ids=self.valid_encounter_ids,
         )
@@ -95,6 +97,10 @@ class FieldMinibossSliceTests(unittest.TestCase):
             self.assertTrue(any(line.startswith("miniboss_encounter_started:miniboss.ch01.tidal_flats.shrine_guardian") for line in risky_logs))
             self.assertIn(
                 "miniboss_first_clear_reward:miniboss.ch01.tidal_flats.shrine_guardian:item.key.recipe_book.tidal_tonic_notes:x1",
+                risky_logs,
+            )
+            self.assertIn(
+                "miniboss_first_clear_reward:miniboss.ch01.tidal_flats.shrine_guardian:item.material.miniboss.guardian_core:x1",
                 risky_logs,
             )
             self.assertTrue(any(line.startswith("recipe_discovered:recipe.craft.tidal_tonic") for line in risky_logs))

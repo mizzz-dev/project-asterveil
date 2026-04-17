@@ -74,6 +74,7 @@ class WorkshopOrderSliceTests(unittest.TestCase):
             crafted = app.craft_recipe("recipe.craft.workshop_guard_oil")
             self.assertIn("crafted:recipe.craft.workshop_guard_oil", crafted)
 
+            app.travel_to("location.town.astel")
             after_rank = app.talk_to_npc("npc.astel.workshop_master")
             self.assertTrue(any("workshop_progress:rank=2" in line for line in after_rank))
 

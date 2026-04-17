@@ -28,6 +28,9 @@ class CraftingRecipeDefinition:
     ingredients: tuple[CraftingIngredient, ...]
     outputs: tuple[CraftingOutput, ...]
     description: str = ""
+    recipe_tier: str = "basic"
+    required_workshop_level: int = 1
+    required_recipe_discovery: str | None = None
     unlock_flags: tuple[str, ...] = tuple()
     unlock_conditions: "RecipeUnlockConditions" | None = None
     visible_before_unlock: bool = True

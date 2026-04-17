@@ -16,6 +16,13 @@
       "unlock_recipe_ids": [
         "recipe.craft.workshop_guard_oil"
       ]
+    },
+    {
+      "level": 3,
+      "required_progress": 120,
+      "unlock_recipe_ids": [
+        "recipe.craft.tidebreaker_harness"
+      ]
     }
   ],
   "orders": [
