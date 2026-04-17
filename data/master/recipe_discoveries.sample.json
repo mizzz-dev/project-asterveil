@@ -42,5 +42,16 @@
     "unlock_message": "工房増築記念の設計図で潮守の護符鍛造を習得した。",
     "category": "equipment",
     "workshop_npc_id": "npc.astel.workshop_master"
+  },
+  {
+    "unlock_source_type": "dialogue_event",
+    "source_id": "dialogue.workshop.rank3_blueprint",
+    "recipe_book_id": "recipe_book.astel.tidebreaker_notes",
+    "recipe_ids": [
+      "recipe.craft.tidebreaker_harness"
+    ],
+    "unlock_message": "潮祠素材向けの上位鍛造設計図を受け取った。",
+    "category": "equipment",
+    "workshop_npc_id": "npc.astel.workshop_master"
   }
 ]

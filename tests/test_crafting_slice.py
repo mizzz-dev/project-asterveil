@@ -32,12 +32,15 @@ class CraftingSliceTests(unittest.TestCase):
             valid_item_ids={
                 "item.material.memory_shard",
                 "item.material.iron_fragment",
+                "item.material.miniboss.guardian_core",
+                "item.material.relic.deepsea_thread",
                 "item.consumable.antidote_leaf",
                 "item.consumable.memory_tonic",
                 "item.consumable.focus_drop",
                 "equip.weapon.memory_edge",
+                "equip.armor.tidebreaker_harness",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem"},
+            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem", "equip.armor.tidebreaker_harness"},
         )
         self.assertIn("recipe.craft.memory_tonic", recipes)
         self.assertIn("recipe.craft.memory_edge", recipes)
@@ -45,6 +48,12 @@ class CraftingSliceTests(unittest.TestCase):
         self.assertEqual(recipes["recipe.craft.memory_edge"].unlock_conditions.required_completed_quest_ids, ("quest.ch01.missing_port_record",))
         self.assertEqual(recipes["recipe.craft.herbal_focus_drop"].unlock_conditions.required_flags, ("flag.helped_npc",))
         self.assertIn("recipe.craft.tidal_tonic", recipes)
+        self.assertEqual(recipes["recipe.craft.tidebreaker_harness"].recipe_tier, "advanced")
+        self.assertEqual(recipes["recipe.craft.tidebreaker_harness"].required_workshop_level, 3)
+        self.assertEqual(
+            recipes["recipe.craft.tidebreaker_harness"].required_recipe_discovery,
+            "recipe_book.astel.tidebreaker_notes",
+        )
 
     def test_load_recipe_discoveries(self) -> None:
         repo = CraftingMasterDataRepository(Path("data/master"))
@@ -52,12 +61,18 @@ class CraftingSliceTests(unittest.TestCase):
         self.assertTrue(any(d.unlock_source_type == "quest_complete" and d.source_id == "quest.ch01.missing_port_record" for d in discoveries))
         self.assertTrue(any(d.unlock_source_type == "dialogue_event" and d.source_id == "dialogue.workshop.recipe_lesson" for d in discoveries))
         self.assertTrue(any(d.unlock_source_type == "loot_item" and d.source_id == "item.key.recipe_book.tidal_tonic_notes" for d in discoveries))
+        self.assertTrue(any(d.unlock_source_type == "dialogue_event" and d.source_id == "dialogue.workshop.rank3_blueprint" for d in discoveries))
 
     def test_recipe_discovery_service_handles_duplicate_book(self) -> None:
         repo = CraftingMasterDataRepository(Path("data/master"))
         service = RecipeDiscoveryService(
             repo.load_recipe_discoveries(),
-            valid_recipe_ids={"recipe.craft.tidal_tonic", "recipe.craft.memory_edge", "recipe.craft.tidal_guard_talisman"},
+            valid_recipe_ids={
+                "recipe.craft.tidal_tonic",
+                "recipe.craft.memory_edge",
+                "recipe.craft.tidal_guard_talisman",
+                "recipe.craft.tidebreaker_harness",
+            },
         )
         discovered_recipe_ids: set[str] = set()
         discovered_book_ids: set[str] = set()
@@ -90,8 +105,10 @@ class CraftingSliceTests(unittest.TestCase):
                 "item.consumable.antidote_leaf",
                 "item.consumable.memory_tonic",
                 "item.consumable.focus_drop",
+                "item.material.miniboss.guardian_core",
+                "item.material.relic.deepsea_thread",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem"},
+            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem", "equip.armor.tidebreaker_harness"},
         )
         unlock_service = RecipeUnlockService()
         unlocked_recipe_ids: set[str] = set()
@@ -221,6 +238,39 @@ class CraftingSliceTests(unittest.TestCase):
             self.assertEqual(resumed.party_members[0].equipped["weapon"], "equip.weapon.memory_edge")
             self.assertIn("recipe.craft.herbal_focus_drop", resumed.unlocked_recipe_ids)
             self.assertIn("recipe.craft.tidal_tonic", resumed.discovered_recipe_ids)
+
+    def test_advanced_crafting_requires_rank_discovery_and_rare_materials(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = self._build_app(tmp_dir)
+            app.new_game()
+            app.workshop_progress_state.level = 3
+            app.quest_session.world_flags.update({"flag.workshop.rank.2", "flag.workshop.rank.3"})
+            app.workshop_progress_state.unlocked_recipe_ids.add("recipe.craft.tidebreaker_harness")
+            app.unlocked_recipe_ids.add("recipe.craft.tidebreaker_harness")
+
+            app.inventory_state.setdefault("items", {})["item.material.miniboss.guardian_core"] = 1
+            app.inventory_state["items"]["item.material.relic.deepsea_thread"] = 1
+            app.inventory_state["items"]["item.material.iron_fragment"] = 2
+
+            locked_by_discovery = app.craft_recipe("recipe.craft.tidebreaker_harness")
+            self.assertEqual(
+                locked_by_discovery,
+                [
+                    "craft_failed:required_recipe_discovery:recipe=recipe.craft.tidebreaker_harness:required=recipe_book.astel.tidebreaker_notes"
+                ],
+            )
+
+            app.discovered_recipe_book_ids.add("recipe_book.astel.tidebreaker_notes")
+            crafted_logs = app.craft_recipe("recipe.craft.tidebreaker_harness")
+            self.assertIn("crafted:recipe.craft.tidebreaker_harness", crafted_logs)
+            self.assertIn("advanced_crafting_success:recipe.craft.tidebreaker_harness", crafted_logs)
+            self.assertEqual(app.inventory_state["items"].get("item.material.miniboss.guardian_core", 0), 0)
+            self.assertEqual(app.inventory_state["items"].get("item.material.relic.deepsea_thread", 0), 0)
+            self.assertEqual(app.inventory_state["items"].get("item.material.iron_fragment", 0), 0)
+            self.assertEqual(app.inventory_state["items"].get("equip.armor.tidebreaker_harness", 0), 1)
+
+            equip_logs = app.equip_item("char.main.rion", "armor", "equip.armor.tidebreaker_harness")
+            self.assertIn("equip_succeeded:char.main.rion:armor:equip.armor.tidebreaker_harness", equip_logs)
 
 
 if __name__ == "__main__":

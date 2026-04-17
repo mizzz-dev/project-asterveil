@@ -9,6 +9,10 @@
       {
         "item_id": "item.key.recipe_book.tidal_tonic_notes",
         "amount": 1
+      },
+      {
+        "item_id": "item.material.miniboss.guardian_core",
+        "amount": 1
       }
     ],
     "repeat_rewards": [

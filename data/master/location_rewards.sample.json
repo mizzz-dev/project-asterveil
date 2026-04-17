@@ -90,12 +90,17 @@
         "content_type": "item",
         "item_id": "item.material.memory_shard",
         "quantity": 1
+      },
+      {
+        "content_type": "item",
+        "item_id": "item.material.relic.deepsea_thread",
+        "quantity": 1
       }
     ],
     "one_time": true,
     "required_flags": [
       "flag.field_event.tidal_flats.hidden_cache_unlocked"
     ],
-    "message_on_open": "防水包みから記憶片を見つけた。"
+    "message_on_open": "防水包みから記憶片と深海繊維を見つけた。"
   }
 ]

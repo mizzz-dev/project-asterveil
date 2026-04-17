@@ -182,5 +182,41 @@
     "stackable": false,
     "name": "潮香トニックの走り書き",
     "description": "工房職人の走り書き。読めば調合手順が分かる。"
+  },
+  {
+    "item_id": "item.material.miniboss.guardian_core",
+    "id": "item.material.miniboss.guardian_core",
+    "category": "material",
+    "item_type": "material",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": true,
+    "name": "潮祠の守護核",
+    "description": "潮祠の守り手から得られる希少核素材。"
+  },
+  {
+    "item_id": "item.material.relic.deepsea_thread",
+    "id": "item.material.relic.deepsea_thread",
+    "category": "material",
+    "item_type": "material",
+    "target_scope": "none",
+    "effect_type": "none",
+    "effect_value": 0,
+    "stackable": true,
+    "name": "深海繊維",
+    "description": "探索報酬で得られる耐蝕性の高い希少繊維。"
+  },
+  {
+    "item_id": "equip.armor.tidebreaker_harness",
+    "id": "equip.armor.tidebreaker_harness",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "タイドブレイカーハーネス",
+    "description": "上位工房でのみ鍛造できる防具。戦闘開始時に防御上昇を得る。"
   }
 ]

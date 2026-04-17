@@ -71,6 +71,11 @@ class CraftingMasterDataRepository:
                         quantity=quantity,
                     )
                 )
+            recipe_tier = str(entry.get("recipe_tier") or "basic")
+            if recipe_tier not in {"basic", "advanced"}:
+                raise ValueError(
+                    f"crafting_recipes.sample.json recipe_tier must be basic|advanced recipe_id={recipe_id}"
+                )
 
             recipes[recipe_id] = CraftingRecipeDefinition(
                 recipe_id=recipe_id,
@@ -79,6 +84,9 @@ class CraftingMasterDataRepository:
                 ingredients=tuple(ingredients),
                 outputs=tuple(outputs),
                 description=str(entry.get("description") or ""),
+                recipe_tier=recipe_tier,
+                required_workshop_level=max(1, int(entry.get("required_workshop_level", 1))),
+                required_recipe_discovery=str(entry.get("required_recipe_discovery") or "") or None,
                 unlock_flags=tuple(str(flag_id) for flag_id in entry.get("unlock_flags", [])),
                 unlock_conditions=self._build_unlock_conditions(entry, recipe_id),
                 visible_before_unlock=bool(entry.get("visible_before_unlock", True)),

@@ -115,5 +115,28 @@
     "price": 320,
     "stackable": false,
     "passive_effects": []
+  },
+  {
+    "equipment_id": "equip.armor.tidebreaker_harness",
+    "name": "タイドブレイカーハーネス",
+    "slot_type": "armor",
+    "stat_modifiers": {
+      "def": 5,
+      "hp": 20
+    },
+    "description": "潮流の守護核を編み込んだ上位防具。戦闘開始時に防御上昇を得る。",
+    "price": 520,
+    "stackable": false,
+    "passive_effects": [
+      {
+        "passive_id": "passive.equip.tidebreaker_harness.opening_defense_up",
+        "passive_type": "battle_start_effect",
+        "target": "self",
+        "parameters": {
+          "effect_id": "effect.buff.defense_up"
+        },
+        "description": "戦闘開始時に防御上昇を付与する。"
+      }
+    ]
   }
 ]

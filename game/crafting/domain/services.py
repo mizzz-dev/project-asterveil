@@ -61,6 +61,9 @@ class CraftingService:
                 for output in recipe.outputs
             ),
             description=recipe.description,
+            recipe_tier=recipe.recipe_tier,
+            required_workshop_level=recipe.required_workshop_level,
+            required_recipe_discovery=recipe.required_recipe_discovery,
             unlock_flags=recipe.unlock_flags,
             unlock_conditions=recipe.unlock_conditions,
             visible_before_unlock=recipe.visible_before_unlock,

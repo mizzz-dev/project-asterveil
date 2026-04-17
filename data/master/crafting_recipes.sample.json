@@ -19,6 +19,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "description": "記憶片を薬草と調合し、高い回復効果を持つ薬を作る。",
     "unlock_conditions": {
       "required_flags": [],
@@ -47,6 +49,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "description": "記憶片と鉄片を鍛え、攻撃性能の高い剣を作る。",
     "unlock_conditions": {
       "required_completed_quest_ids": [
@@ -76,6 +80,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "description": "助力を選んだときに伝授される応用調合。",
     "unlock_conditions": {
       "required_flags": [
@@ -105,6 +111,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "description": "工房で伝わる潮香トニックの調合法。",
     "unlock_conditions": {
       "required_flags": [
@@ -135,6 +143,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "unlock_conditions": {
       "required_flags": [
         "flag.hub.facility.workshop.level2"
@@ -163,6 +173,8 @@
         "quantity": 1
       }
     ],
+    "recipe_tier": "basic",
+    "required_workshop_level": 1,
     "description": "ランク2工房で扱える保守用オイル。",
     "unlock_conditions": {
       "required_flags": [
@@ -172,5 +184,41 @@
     },
     "visible_before_unlock": true,
     "unlock_message": "工房ランク2で保守オイル調合が解放された。"
+  },
+  {
+    "recipe_id": "recipe.craft.tidebreaker_harness",
+    "name": "潮断の戦装鍛造",
+    "category": "equipment",
+    "ingredients": [
+      {
+        "item_id": "item.material.miniboss.guardian_core",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.material.relic.deepsea_thread",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 2
+      }
+    ],
+    "outputs": [
+      {
+        "equipment_id": "equip.armor.tidebreaker_harness",
+        "quantity": 1
+      }
+    ],
+    "recipe_tier": "advanced",
+    "required_workshop_level": 3,
+    "required_recipe_discovery": "recipe_book.astel.tidebreaker_notes",
+    "description": "潮祠の守護核と深海繊維を使って鍛える上位防具。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.workshop.rank.3"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "工房ランク3に到達し、潮断の戦装鍛造を扱えるようになった。"
   }
 ]
