@@ -1,0 +1,61 @@
+{
+  "rank_levels": [
+    {
+      "level": 1,
+      "required_progress": 0,
+      "unlock_recipe_ids": [
+        "recipe.craft.memory_tonic",
+        "recipe.craft.memory_edge",
+        "recipe.craft.herbal_focus_drop",
+        "recipe.craft.tidal_tonic"
+      ]
+    },
+    {
+      "level": 2,
+      "required_progress": 60,
+      "unlock_recipe_ids": [
+        "recipe.craft.workshop_guard_oil"
+      ]
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "quest.ch01.workshop_iron_delivery",
+      "name": "工房定期依頼：鉄片補充",
+      "description": "鉄片を納品して工房炉を維持する。",
+      "repeatable": true,
+      "repeat_reset_rule": "on_return_to_hub",
+      "required_turn_in_items": [
+        {
+          "item_id": "item.material.iron_fragment",
+          "quantity": 2
+        }
+      ],
+      "workshop_progress_value": 30,
+      "rewards": {
+        "exp": 70,
+        "gold": 55
+      }
+    },
+    {
+      "order_id": "quest.ch01.workshop_tonic_order",
+      "name": "工房定期依頼：潮香トニック納品",
+      "description": "完成品の潮香トニックを納品する。",
+      "repeatable": true,
+      "repeat_reset_rule": "manual_reaccept",
+      "required_turn_in_items": [
+        {
+          "item_id": "item.consumable.memory_tonic",
+          "quantity": 1
+        }
+      ],
+      "require_crafted_item": true,
+      "required_workshop_level": 2,
+      "workshop_progress_value": 40,
+      "rewards": {
+        "exp": 90,
+        "gold": 70
+      }
+    }
+  ]
+}

@@ -142,5 +142,35 @@
     },
     "visible_before_unlock": true,
     "unlock_message": "工房ランク上昇で潮守の護符鍛造が可能になった。"
+  },
+  {
+    "recipe_id": "recipe.craft.workshop_guard_oil",
+    "name": "工房保守オイル調合",
+    "category": "consumable",
+    "ingredients": [
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.consumable.antidote_leaf",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "item_id": "item.consumable.focus_drop",
+        "quantity": 1
+      }
+    ],
+    "description": "ランク2工房で扱える保守用オイル。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.workshop.rank.2"
+      ],
+      "required_completed_quest_ids": []
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "工房ランク2で保守オイル調合が解放された。"
   }
 ]
