@@ -22,9 +22,11 @@ from game.gathering.infrastructure.master_data_repository import GatheringNodeMa
 from game.location.application.travel_service import TravelService
 from game.location.domain.entities import LocationState
 from game.location.domain.field_event_service import FieldEventService
+from game.location.domain.miniboss_service import MinibossService
 from game.location.domain.treasure_services import TreasureService
 from game.location.infrastructure.field_event_repository import FieldEventMasterDataRepository
 from game.location.infrastructure.master_data_repository import LocationMasterDataRepository
+from game.location.infrastructure.miniboss_repository import MinibossMasterDataRepository
 from game.location.infrastructure.treasure_repository import TreasureMasterDataRepository
 from game.quest.application.session import QuestSliceSession
 from game.quest.cli.run_quest_slice import build_battle_executor
@@ -64,6 +66,7 @@ class PlayableSliceApplication:
         self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
         self._treasure_repo = TreasureMasterDataRepository(master_root)
         self._field_event_repo = FieldEventMasterDataRepository(master_root)
+        self._miniboss_repo = MinibossMasterDataRepository(master_root)
         self._save_repo = JsonFileSaveRepository(save_file_path)
         self._save_service = SaveSliceApplicationService()
         self._character_initial_skill_ids = self._app_master_repo.load_initial_skill_ids_by_character()
@@ -110,6 +113,14 @@ class PlayableSliceApplication:
         self._inns = self._app_master_repo.load_inns()
         self._inn_service = InnService(self._inns, self._equipment_service, self._status_effect_definitions)
         self._battle_rewards = self._app_master_repo.load_battle_rewards(set(self._item_definitions))
+        raw_encounters = json.loads((master_root / "encounters.sample.json").read_text(encoding="utf-8"))
+        encounter_ids = {str(entry.get("encounter_id", "")) for entry in raw_encounters if entry.get("encounter_id")}
+        self._miniboss_service = MinibossService(
+            self._miniboss_repo.load_definitions(
+                valid_item_ids=set(self._item_definitions),
+                valid_encounter_ids=encounter_ids,
+            )
+        )
         self._quest_board_service = QuestBoardService(self._quest_repo.load_quests(), max_active_quests=2)
         self._location_definitions = self._location_repo.load_locations()
         self._travel_service = TravelService(self._location_definitions, hub_location_id=HUB_LOCATION_ID)
@@ -136,6 +147,8 @@ class PlayableSliceApplication:
         self.completed_location_event_ids: set[str] = set()
         self.completed_field_event_ids: set[str] = set()
         self.field_event_choice_history: dict[str, str] = {}
+        self.defeated_miniboss_ids: set[str] = set()
+        self.miniboss_first_clear_reward_claimed_ids: set[str] = set()
         self.gathered_node_ids: set[str] = set()
         self.unlocked_recipe_ids: set[str] = set()
         self.discovered_recipe_ids: set[str] = set()
@@ -164,6 +177,8 @@ class PlayableSliceApplication:
         self.completed_location_event_ids = set()
         self.completed_field_event_ids = set()
         self.field_event_choice_history = {}
+        self.defeated_miniboss_ids = set()
+        self.miniboss_first_clear_reward_claimed_ids = set()
         self.gathered_node_ids = set()
         self.unlocked_recipe_ids = set()
         self.discovered_recipe_ids = set()
@@ -211,6 +226,11 @@ class PlayableSliceApplication:
             str(event_id): str(choice_id)
             for event_id, choice_id in event_meta.get("field_event_choice_history", {}).items()
         }
+        miniboss_meta = save_data.meta.get("miniboss_state", {})
+        self.defeated_miniboss_ids = self._restore_defeated_miniboss_ids(miniboss_meta)
+        self.miniboss_first_clear_reward_claimed_ids = self._restore_miniboss_first_clear_reward_claimed_ids(
+            miniboss_meta
+        )
         gathering_meta = save_data.meta.get("gathering_state", {})
         self.gathered_node_ids = self._restore_gathered_node_ids(gathering_meta)
         crafting_meta = save_data.meta.get("crafting_state", {})
@@ -432,6 +452,10 @@ class PlayableSliceApplication:
                     "completed_location_event_ids": sorted(self.completed_location_event_ids),
                     "completed_field_event_ids": sorted(self.completed_field_event_ids),
                     "field_event_choice_history": dict(sorted(self.field_event_choice_history.items())),
+                },
+                "miniboss_state": {
+                    "defeated_miniboss_ids": sorted(self.defeated_miniboss_ids),
+                    "first_clear_reward_claimed_ids": sorted(self.miniboss_first_clear_reward_claimed_ids),
                 },
                 "gathering_state": {
                     "gathered_node_ids": sorted(self.gathered_node_ids),
@@ -656,6 +680,9 @@ class PlayableSliceApplication:
                 f"can_execute={status.can_execute}:reason={status.reason_code}"
             )
             lines.append(f"field_event_desc:{status.event_id}:{status.description}")
+            miniboss_status = self._miniboss_service.event_status_label(status.event_id, self.defeated_miniboss_ids)
+            if miniboss_status is not None:
+                lines.append(miniboss_status)
         return lines
 
     def executable_field_event_choices(self) -> list[tuple[str, str]]:
@@ -702,7 +729,13 @@ class PlayableSliceApplication:
         lines.append(f"field_choice_selected:{resolved.event.event_id}:{resolved.choice.choice_id}")
         self.field_event_choice_history[resolved.event.event_id] = resolved.choice.choice_id
         for outcome in resolved.choice.outcomes:
-            lines.extend(self._run_field_event_outcome(outcome.outcome_type, outcome.params))
+            lines.extend(
+                self._run_field_event_outcome(
+                    outcome.outcome_type,
+                    outcome.params,
+                    source_event_id=resolved.event.event_id,
+                )
+            )
         if resolved.should_mark_completed:
             self.completed_field_event_ids.add(resolved.event.event_id)
         self.last_event_id = resolved.event.event_id
@@ -1169,6 +1202,22 @@ class PlayableSliceApplication:
             raise ValueError(f"save_data has unknown opened_reward_node_ids={unknown_node_ids}")
         return opened_node_ids
 
+    def _restore_defeated_miniboss_ids(self, miniboss_meta: dict) -> set[str]:
+        defeated_ids = {str(miniboss_id) for miniboss_id in miniboss_meta.get("defeated_miniboss_ids", [])}
+        unknown_ids = sorted(miniboss_id for miniboss_id in defeated_ids if miniboss_id not in self._miniboss_service.definitions)
+        if unknown_ids:
+            raise ValueError(f"save_data has unknown defeated_miniboss_ids={unknown_ids}")
+        return defeated_ids
+
+    def _restore_miniboss_first_clear_reward_claimed_ids(self, miniboss_meta: dict) -> set[str]:
+        claimed_ids = {
+            str(miniboss_id) for miniboss_id in miniboss_meta.get("first_clear_reward_claimed_ids", [])
+        }
+        unknown_ids = sorted(miniboss_id for miniboss_id in claimed_ids if miniboss_id not in self._miniboss_service.definitions)
+        if unknown_ids:
+            raise ValueError(f"save_data has unknown first_clear_reward_claimed_ids={unknown_ids}")
+        return claimed_ids
+
     def _run_on_enter_location_events(self, location_id: str) -> list[str]:
         if self.quest_session is None:
             raise ValueError("ゲームが開始されていません。")
@@ -1210,7 +1259,13 @@ class PlayableSliceApplication:
             return self._run_event_battle(params["encounter_id"])
         return [f"location_event_action_skipped:unsupported:{action_type}"]
 
-    def _run_field_event_outcome(self, outcome_type: str, params: dict[str, str]) -> list[str]:
+    def _run_field_event_outcome(
+        self,
+        outcome_type: str,
+        params: dict[str, str],
+        *,
+        source_event_id: str,
+    ) -> list[str]:
         if self.quest_session is None:
             raise ValueError("ゲームが開始されていません。")
         if outcome_type == "show_message":
@@ -1242,6 +1297,11 @@ class PlayableSliceApplication:
             if not encounter_id:
                 return ["field_event_outcome_failed:start_battle_missing_encounter_id"]
             return self._run_event_battle(encounter_id)
+        if outcome_type == "start_miniboss_battle":
+            miniboss_id = params.get("miniboss_id", "")
+            if not miniboss_id:
+                return ["field_event_outcome_failed:start_miniboss_missing_miniboss_id"]
+            return self._run_miniboss_battle(miniboss_id=miniboss_id, source_event_id=source_event_id)
         if outcome_type == "apply_effect_to_party":
             effect_id = params.get("effect_id", "")
             if effect_id not in self._status_effect_definitions:
@@ -1259,6 +1319,54 @@ class PlayableSliceApplication:
             self.quest_session.world_flags.add(unlock_flag)
             return [f"field_event_treasure_unlocked:{reward_node_id}:{unlock_flag}"]
         return [f"field_event_outcome_skipped:unsupported:{outcome_type}"]
+
+    def _run_miniboss_battle(self, *, miniboss_id: str, source_event_id: str) -> list[str]:
+        if self.quest_session is None:
+            raise ValueError("ゲームが開始されていません。")
+        start = self._miniboss_service.resolve_start(
+            miniboss_id=miniboss_id,
+            trigger_event_id=source_event_id,
+            location_id=self.location_state.current_location_id,
+            defeated_miniboss_ids=self.defeated_miniboss_ids,
+        )
+        if not start.success:
+            return [start.code]
+        if start.definition is None:
+            return ["miniboss_failed:definition_error"]
+
+        logs = [
+            f"miniboss_encounter_started:{start.definition.miniboss_id}:{start.definition.encounter_id}:{start.definition.display_name}"
+        ]
+        battle_logs = self._run_event_battle(start.definition.encounter_id)
+        logs.extend(battle_logs)
+
+        if not any(
+            line == f"battle_finished:{start.definition.encounter_id}:player_won=True"
+            for line in battle_logs
+        ):
+            return logs
+
+        self.defeated_miniboss_ids.add(start.definition.miniboss_id)
+        self.quest_session.world_flags.add(start.definition.defeat_flag)
+        logs.append(f"miniboss_defeated:{start.definition.miniboss_id}:{start.definition.defeat_flag}")
+
+        reward_resolution = self._miniboss_service.resolve_rewards(
+            definition=start.definition,
+            is_first_clear=start.is_first_clear,
+            first_clear_reward_claimed_ids=self.miniboss_first_clear_reward_claimed_ids,
+        )
+        if reward_resolution.grant_first_clear:
+            self.miniboss_first_clear_reward_claimed_ids.add(start.definition.miniboss_id)
+
+        if reward_resolution.items:
+            items = self.inventory_state.setdefault("items", {})
+            for reward in reward_resolution.items:
+                items[reward.item_id] = int(items.get(reward.item_id, 0)) + reward.amount
+            logs.extend(reward_resolution.logs)
+            logs.extend(self._apply_recipe_discovery_for_items({reward.item_id for reward in reward_resolution.items}))
+        else:
+            logs.extend(reward_resolution.logs)
+        return logs
 
     def _evaluate_recipe_unlocks(self) -> list[str]:
         if self.quest_session is None:
