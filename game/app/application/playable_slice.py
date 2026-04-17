@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
+from game.app.application.equipment_salvage_service import EquipmentSalvageService
 from game.app.application.equipment_upgrade_service import EquipmentUpgradeService
 from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
@@ -15,6 +16,7 @@ from game.app.application.facility_progression_service import FacilityProgressCo
 from game.app.application.reward_services import RewardApplicationService
 from game.app.application.workshop_progress_service import WorkshopProgressService, WorkshopProgressState
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
+from game.app.infrastructure.equipment_salvage_repository import EquipmentSalvageMasterDataRepository
 from game.app.infrastructure.equipment_upgrade_repository import EquipmentUpgradeMasterDataRepository
 from game.app.infrastructure.facility_master_data_repository import FacilityMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
@@ -66,6 +68,7 @@ class PlayableSliceApplication:
         self._quest_repo = QuestMasterDataRepository(master_root)
         self._app_master_repo = AppMasterDataRepository(master_root)
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
+        self._equipment_salvage_repo = EquipmentSalvageMasterDataRepository(master_root)
         self._equipment_upgrade_repo = EquipmentUpgradeMasterDataRepository(master_root)
         self._facility_repo = FacilityMasterDataRepository(master_root)
         self._workshop_order_repo = WorkshopOrderMasterDataRepository(master_root)
@@ -105,8 +108,13 @@ class PlayableSliceApplication:
             valid_equipment_ids=set(self._equipment_definitions),
             valid_item_ids=set(self._item_definitions),
         )
+        self._equipment_salvage_definitions = self._equipment_salvage_repo.load(
+            valid_equipment_ids=set(self._equipment_definitions),
+            valid_item_ids=set(self._item_definitions),
+        )
         self.equipment_upgrade_levels: dict[str, int] = {}
         self._equipment_upgrade_service = EquipmentUpgradeService(self._equipment_upgrade_definitions)
+        self._equipment_salvage_service = EquipmentSalvageService(self._equipment_salvage_definitions)
         self._crafting_service = CraftingService()
         self._recipe_unlock_service = RecipeUnlockService()
         self._crafting_recipes = self._crafting_repo.load_recipes(
@@ -321,6 +329,7 @@ class PlayableSliceApplication:
             ActionItem("use_item", "アイテムを使う"),
             ActionItem("equip", "装備変更"),
             ActionItem("upgrade_equipment", "装備強化"),
+            ActionItem("salvage_equipment", "装備分解"),
             ActionItem("shop", "ショップに行く"),
             ActionItem("craft", "クラフトする"),
             ActionItem("inn", "宿屋に泊まる"),
@@ -383,6 +392,8 @@ class PlayableSliceApplication:
             return self.equipment_overview_lines()
         if action_key == "upgrade_equipment":
             return self.workshop_equipment_upgrade_lines()
+        if action_key == "salvage_equipment":
+            return self.workshop_equipment_salvage_lines()
         if action_key == "shop":
             return self.shop_catalog_lines()
         if action_key == "craft":
@@ -877,9 +888,11 @@ class PlayableSliceApplication:
                 break
         lines.extend(self._apply_recipe_discovery("dialogue_event", resolved.matched_entry_id or npc_id))
         if npc_id in self._workshop_npc_ids:
+            lines.extend(self.workshop_salvage_guidance_lines())
             lines.extend(self.workshop_recipe_lines(npc_id))
             lines.extend(self.workshop_progress_lines())
             lines.extend(self.workshop_equipment_upgrade_lines())
+            lines.extend(self.workshop_equipment_salvage_lines())
         return lines
 
     def _run_dialogue_choice_effect(self, action_type: str, params: dict[str, str]) -> list[str]:
@@ -1166,6 +1179,96 @@ class PlayableSliceApplication:
                 f"max_level={evaluation.max_level}:next_workshop_level={next_level.required_workshop_level if next_level else '-'}:"
                 f"required_items={material_summary}:status={state_tag}"
             )
+        return lines
+
+    def workshop_salvage_guidance_lines(self) -> list[str]:
+        if self.workshop_progress_state.level < 3:
+            return [
+                "workshop_salvage_guide:不要装備の分解には工房ランクが必要です。",
+                "workshop_salvage_guide:rank3で上位装備の分解が解禁されます。",
+            ]
+        return [
+            "workshop_salvage_guide:不要装備を素材へ戻し、クラフトと強化へ再利用できます。",
+            "workshop_salvage_guide:強化済み装備は強化段階に応じて追加素材を回収できます。",
+        ]
+
+    def workshop_equipment_salvage_lines(self) -> list[str]:
+        lines = [
+            f"workshop_rank:workshop:{self.workshop_progress_state.level}",
+            "equipment_salvage:status",
+        ]
+        options = self.salvageable_equipment_options()
+        if not options:
+            lines.append("equipment_salvage:none")
+            return lines
+        for equipment_id, _ in options:
+            upgrade_level = self._equipment_upgrade_service.current_level(equipment_id, self.equipment_upgrade_levels)
+            evaluation = self._equipment_salvage_service.evaluate_salvage(
+                equipment_id=equipment_id,
+                inventory_items=self.inventory_state.get("items", {}),
+                workshop_level=self.workshop_progress_state.level,
+                equipped_items=tuple(
+                    equipped
+                    for member in self.party_members
+                    for equipped in member.equipped.values()
+                    if equipped
+                ),
+                upgrade_level=upgrade_level,
+            )
+            definition = self._equipment_salvage_definitions[equipment_id]
+            status_tag = {
+                "salvageable": "[分解可能]",
+                "equipped": "[装備中]",
+                "insufficient_workshop_level": "[工房ランク不足]",
+                "not_owned": "[未所持]",
+            }.get(evaluation.code, "[未対応]")
+            resolved_returns = ",".join(f"{item.item_id}:x{item.quantity}" for item in evaluation.returns) or "none"
+            lines.append(
+                f"equipment_salvage_status:{equipment_id}:required_workshop_level={definition.required_workshop_level}:"
+                f"upgrade_level={upgrade_level}:returns={resolved_returns}:status={status_tag}"
+            )
+        return lines
+
+    def salvageable_equipment_options(self) -> list[tuple[str, str]]:
+        options: list[tuple[str, str]] = []
+        for equipment_id, definition in sorted(self._equipment_salvage_definitions.items()):
+            if not definition.salvage_enabled:
+                continue
+            owned = int(self.inventory_state.get("items", {}).get(equipment_id, 0))
+            if owned <= 0:
+                continue
+            name = self._equipment_definitions.get(equipment_id).name if equipment_id in self._equipment_definitions else equipment_id
+            options.append(
+                (
+                    equipment_id,
+                    f"{name} ({equipment_id}) 所持={owned} 必要工房ランク={definition.required_workshop_level}",
+                )
+            )
+        return options
+
+    def salvage_equipment(self, equipment_id: str) -> list[str]:
+        upgrade_level = self._equipment_upgrade_service.current_level(equipment_id, self.equipment_upgrade_levels)
+        result = self._equipment_salvage_service.apply_salvage(
+            equipment_id=equipment_id,
+            inventory_state=self.inventory_state,
+            workshop_level=self.workshop_progress_state.level,
+            equipped_items=tuple(
+                equipped
+                for member in self.party_members
+                for equipped in member.equipped.values()
+                if equipped
+            ),
+            upgrade_level=upgrade_level,
+        )
+        if not result.success:
+            return [result.message]
+
+        lines = [result.message]
+        for reward in result.returns:
+            lines.append(f"equipment_salvage_return:{reward.item_id}:x{reward.quantity}")
+        if int(self.inventory_state.get("items", {}).get(equipment_id, 0)) <= 0:
+            self.equipment_upgrade_levels.pop(equipment_id, None)
+        lines.extend(self.workshop_equipment_salvage_lines())
         return lines
 
     def upgradable_equipment_options(self) -> list[tuple[str, str]]:
