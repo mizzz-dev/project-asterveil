@@ -6,7 +6,7 @@ from typing import Callable
 from game.save.domain.entities import PartyMemberState
 
 
-VALID_SLOTS = ("weapon", "armor")
+VALID_SLOTS = ("weapon", "armor", "accessory")
 STAT_KEYS = ("hp", "sp", "atk", "defense", "spd")
 
 
@@ -44,10 +44,14 @@ class EquipmentService:
         equipment_definitions: dict[str, EquipmentDefinition],
         upgrade_bonus_resolver: Callable[[str], dict[str, int]] | None = None,
         upgrade_level_resolver: Callable[[str], int] | None = None,
+        set_stat_bonus_resolver: Callable[[dict[str, str]], dict[str, int]] | None = None,
+        set_passive_resolver: Callable[[dict[str, str]], tuple[EquipmentPassiveDefinition, ...]] | None = None,
     ) -> None:
         self._equipment_definitions = equipment_definitions
         self._upgrade_bonus_resolver = upgrade_bonus_resolver
         self._upgrade_level_resolver = upgrade_level_resolver
+        self._set_stat_bonus_resolver = set_stat_bonus_resolver
+        self._set_passive_resolver = set_passive_resolver
 
     def compute_bonuses(self, equipped: dict[str, str]) -> dict[str, int]:
         bonus = {key: 0 for key in STAT_KEYS}
@@ -65,6 +69,12 @@ class EquipmentService:
                 normalized = "defense" if key == "def" else key
                 if normalized in bonus:
                     bonus[normalized] += int(value)
+        if self._set_stat_bonus_resolver is not None:
+            set_bonus = self._set_stat_bonus_resolver(equipped)
+            for key, value in set_bonus.items():
+                normalized = "defense" if key == "def" else key
+                if normalized in bonus:
+                    bonus[normalized] += int(value)
         return bonus
 
     def equipped_passives(self, equipped: dict[str, str]) -> tuple[EquipmentPassiveDefinition, ...]:
@@ -76,6 +86,8 @@ class EquipmentService:
             if definition is None:
                 continue
             passives.extend(definition.passive_effects)
+        if self._set_passive_resolver is not None:
+            passives.extend(self._set_passive_resolver(equipped))
         return tuple(passives)
 
     def passive_summary(self, equipped: dict[str, str]) -> list[str]:

@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from game.app.application.playable_slice import PlayableSliceApplication
+from game.app.application.equipment_service import VALID_SLOTS
 
 
 def _choose(items: list[tuple[str, str]]) -> str:
@@ -107,7 +108,12 @@ def _run_equipment_flow(app: PlayableSliceApplication) -> list[str]:
         member_choices.append((character_id, member_line))
     selected_member = _choose(member_choices)
 
-    slot_type = _choose([("weapon", "武器スロット"), ("armor", "防具スロット")])
+    slot_labels = {
+        "weapon": "武器スロット",
+        "armor": "防具スロット",
+        "accessory": "アクセサリスロット",
+    }
+    slot_type = _choose([(slot, slot_labels.get(slot, f"{slot}スロット")) for slot in VALID_SLOTS])
     options = app.equippable_options(selected_member, slot_type)
     if not options:
         return [f"equip_failed:no_option:{selected_member}:{slot_type}"]

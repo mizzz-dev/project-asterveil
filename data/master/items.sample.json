@@ -218,5 +218,17 @@
     "stackable": false,
     "name": "タイドブレイカーハーネス",
     "description": "上位工房でのみ鍛造できる防具。戦闘開始時に防御上昇を得る。"
+  },
+  {
+    "item_id": "equip.accessory.tidecrest_ring",
+    "id": "equip.accessory.tidecrest_ring",
+    "category": "equipment",
+    "item_type": "equipment",
+    "target_scope": "none",
+    "effect_type": "equip",
+    "effect_value": 0,
+    "stackable": false,
+    "name": "タイドクレストリング",
+    "description": "潮断装備向けに調整された補助指輪。"
   }
 ]

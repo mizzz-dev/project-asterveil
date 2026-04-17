@@ -138,5 +138,18 @@
         "description": "戦闘開始時に防御上昇を付与する。"
       }
     ]
+  },
+  {
+    "equipment_id": "equip.accessory.tidecrest_ring",
+    "name": "タイドクレストリング",
+    "slot_type": "accessory",
+    "stat_modifiers": {
+      "atk": 2,
+      "def": 1
+    },
+    "description": "潮流紋を刻んだ指輪。潮断装備との連携で真価を発揮する。",
+    "price": 360,
+    "stackable": false,
+    "passive_effects": []
   }
 ]

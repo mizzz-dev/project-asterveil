@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 
 from game.app.application.equipment_service import EquipmentDefinition, EquipmentPassiveDefinition
+from game.app.application.equipment_set_service import (
+    SUPPORTED_SET_BONUS_TYPES,
+    EquipmentSetBonusDefinition,
+    EquipmentSetDefinition,
+)
 from game.app.application.inn_service import InnDefinition
 from game.app.application.reward_services import BattleReward, RewardBundle, RewardItem
 
@@ -154,6 +159,70 @@ class AppMasterDataRepository:
                 )
             result[character_id] = tuple(learnable)
         return result
+
+
+    def load_equipment_sets(self, valid_equipment_ids: set[str]) -> dict[str, EquipmentSetDefinition]:
+        path = self._root / "equipment_sets.sample.json"
+        if not path.exists():
+            return {}
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        equipment_sets: dict[str, EquipmentSetDefinition] = {}
+        for entry in raw:
+            set_id = str(entry.get("set_id") or "")
+            if not set_id:
+                raise ValueError("equipment_sets.sample.json missing field=set_id")
+            member_equipment_ids = tuple(str(equipment_id) for equipment_id in entry.get("member_equipment_ids", []))
+            if not member_equipment_ids:
+                raise ValueError(f"equipment_sets.sample.json missing member_equipment_ids set_id={set_id}")
+            unknown_members = sorted(equipment_id for equipment_id in member_equipment_ids if equipment_id not in valid_equipment_ids)
+            if unknown_members:
+                raise ValueError(f"equipment_sets.sample.json unknown member_equipment_ids set_id={set_id}: {unknown_members}")
+
+            bonuses: list[EquipmentSetBonusDefinition] = []
+            for bonus in entry.get("set_bonuses", []):
+                required_piece_count = int(bonus.get("required_piece_count", 0))
+                bonus_type = str(bonus.get("bonus_type") or "")
+                parameters = dict(bonus.get("parameters") or {})
+                if required_piece_count <= 0:
+                    raise ValueError(
+                        f"equipment_sets.sample.json required_piece_count must be >=1 set_id={set_id}"
+                    )
+                if required_piece_count > len(member_equipment_ids):
+                    raise ValueError(
+                        f"equipment_sets.sample.json required_piece_count exceeds member count set_id={set_id}"
+                    )
+                if bonus_type not in SUPPORTED_SET_BONUS_TYPES:
+                    raise ValueError(
+                        f"equipment_sets.sample.json unsupported bonus_type={bonus_type} set_id={set_id}"
+                    )
+                if bonus_type == "stat_bonus" and not parameters:
+                    raise ValueError(f"equipment_sets.sample.json stat_bonus requires parameters set_id={set_id}")
+                if bonus_type in {"passive_effect", "status_resistance"}:
+                    passive_id = str(parameters.get("passive_id") or "")
+                    if not passive_id:
+                        raise ValueError(
+                            f"equipment_sets.sample.json passive bonus requires parameters.passive_id set_id={set_id}"
+                        )
+                bonuses.append(
+                    EquipmentSetBonusDefinition(
+                        required_piece_count=required_piece_count,
+                        bonus_type=bonus_type,
+                        parameters=parameters,
+                        bonus_description=str(bonus.get("bonus_description", "")),
+                    )
+                )
+
+            if not bonuses:
+                raise ValueError(f"equipment_sets.sample.json missing set_bonuses set_id={set_id}")
+
+            equipment_sets[set_id] = EquipmentSetDefinition(
+                set_id=set_id,
+                name=str(entry.get("name") or set_id),
+                description=str(entry.get("description") or ""),
+                member_equipment_ids=member_equipment_ids,
+                set_bonuses=tuple(sorted(bonuses, key=lambda item: item.required_piece_count)),
+            )
+        return equipment_sets
 
     def _validate_reward_item(self, item: dict, valid_item_ids: set[str], source: str) -> RewardItem:
         for field in ["item_id", "amount"]:

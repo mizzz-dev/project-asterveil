@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
+from game.app.application.equipment_service import EquipmentPassiveDefinition, EquipmentService, VALID_SLOTS
+from game.app.application.equipment_set_service import EquipmentSetService
 from game.app.application.equipment_salvage_service import EquipmentSalvageService
 from game.app.application.equipment_upgrade_service import EquipmentUpgradeService
 from game.app.application.inn_service import InnService
@@ -104,6 +105,8 @@ class PlayableSliceApplication:
         self._item_definitions = self._app_master_repo.load_items()
         self._status_effect_definitions = self._app_master_repo.load_status_effects()
         self._equipment_definitions = self._app_master_repo.load_equipment()
+        self._equipment_set_definitions = self._app_master_repo.load_equipment_sets(set(self._equipment_definitions))
+        self._equipment_set_service = EquipmentSetService(self._equipment_set_definitions)
         self._equipment_upgrade_definitions = self._equipment_upgrade_repo.load(
             valid_equipment_ids=set(self._equipment_definitions),
             valid_item_ids=set(self._item_definitions),
@@ -139,6 +142,8 @@ class PlayableSliceApplication:
             upgrade_level_resolver=lambda equipment_id: self._equipment_upgrade_service.current_level(
                 equipment_id, self.equipment_upgrade_levels
             ),
+            set_stat_bonus_resolver=lambda equipped: self._equipment_set_service.compute_stat_bonus(equipped),
+            set_passive_resolver=lambda equipped: self._resolve_set_passives(equipped),
         )
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
@@ -192,6 +197,7 @@ class PlayableSliceApplication:
         self.turn_in_completion_count: int = 0
         self.workshop_progress_state = WorkshopProgressState()
         self.workshop_order_completion_counts: dict[str, int] = {}
+        self.active_set_bonus_keys_by_member: dict[str, set[str]] = {}
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
 
     def new_game(self) -> list[str]:
@@ -225,11 +231,13 @@ class PlayableSliceApplication:
         self.workshop_progress_state = WorkshopProgressState()
         self.workshop_order_completion_counts = {}
         self.equipment_upgrade_levels = {}
+        self.active_set_bonus_keys_by_member = {}
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self._initialize_facility_state()
         self._initialize_workshop_progress_state()
         self._evaluate_recipe_unlocks()
         self._refresh_all_quest_objective_flags()
+        self._initialize_active_set_bonus_cache()
         self.last_event_id = "event.system.new_game_intro"
 
         return [
@@ -317,6 +325,7 @@ class PlayableSliceApplication:
         self._evaluate_facility_progression()
         self._evaluate_recipe_unlocks()
         self._refresh_all_quest_objective_flags()
+        self._initialize_active_set_bonus_cache()
         return True, "セーブデータをロードしました。"
 
     def available_actions(self) -> list[ActionItem]:
@@ -888,6 +897,7 @@ class PlayableSliceApplication:
                 break
         lines.extend(self._apply_recipe_discovery("dialogue_event", resolved.matched_entry_id or npc_id))
         if npc_id in self._workshop_npc_ids:
+            lines.extend(self.workshop_set_bonus_guidance_lines())
             lines.extend(self.workshop_salvage_guidance_lines())
             lines.extend(self.workshop_recipe_lines(npc_id))
             lines.extend(self.workshop_progress_lines())
@@ -1309,6 +1319,9 @@ class PlayableSliceApplication:
         )
         lines = [result.message]
         if result.success:
+            member = next((m for m in self.party_members if m.character_id == character_id), None)
+            if member is not None:
+                lines.extend(self._set_bonus_transition_lines(member))
             lines.extend(self.party_member_lines())
         return lines
 
@@ -1328,9 +1341,83 @@ class PlayableSliceApplication:
                 f"equipment_upgrade_levels={equipped_upgrade_levels}:"
                 f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}:"
                 f"skills={member.unlocked_skill_ids}:"
-                f"passives={self._equipment_service.passive_summary(member.equipped)}"
+                f"passives={self._equipment_service.passive_summary(member.equipped)}:"
+                f"active_set_bonuses={self._active_set_bonus_labels(member.equipped)}"
             )
         return lines
+
+    def workshop_set_bonus_guidance_lines(self) -> list[str]:
+        if not self.party_members or not self._equipment_set_definitions:
+            return []
+        member = self.party_members[0]
+        active_by_set: dict[str, set[int]] = {}
+        for bonus in self._equipment_set_service.resolve_active_bonuses(member.equipped):
+            active_by_set.setdefault(bonus.set_id, set()).add(bonus.required_piece_count)
+        lines: list[str] = []
+        for set_definition in self._equipment_set_definitions.values():
+            total = len(set_definition.member_equipment_ids)
+            active_counts = active_by_set.get(set_definition.set_id, set())
+            if total in active_counts:
+                lines.append(f"workshop_set_bonus_hint:{set_definition.set_id}:全段階発動中")
+                continue
+            if active_counts:
+                max_active = max(active_counts)
+                lines.append(f"workshop_set_bonus_hint:{set_definition.set_id}:{max_active}/{total}部位達成")
+                continue
+            lines.append(f"workshop_set_bonus_hint:{set_definition.set_id}:未成立")
+        return lines
+
+    def _resolve_set_passives(self, equipped: dict[str, str]) -> tuple[EquipmentPassiveDefinition, ...]:
+        passives: list[EquipmentPassiveDefinition] = []
+        for bonus in self._equipment_set_service.resolve_active_bonuses(equipped):
+            if bonus.bonus_type not in {"passive_effect", "status_resistance"}:
+                continue
+            parameters = dict(bonus.parameters)
+            resolved_passive_type = str(
+                parameters.get("passive_type") or ("status_resistance" if bonus.bonus_type == "status_resistance" else "")
+            )
+            if not resolved_passive_type:
+                continue
+            passives.append(
+                EquipmentPassiveDefinition(
+                    passive_id=str(parameters.get("passive_id") or f"{bonus.set_id}.{bonus.required_piece_count}"),
+                    passive_type=resolved_passive_type,
+                    target=str(parameters.get("target", "self")),
+                    parameters=dict(parameters.get("parameters", {})),
+                    description=bonus.bonus_description,
+                )
+            )
+        return tuple(passives)
+
+    def _active_set_bonus_labels(self, equipped: dict[str, str]) -> list[str]:
+        labels: list[str] = []
+        for bonus in self._equipment_set_service.resolve_active_bonuses(equipped):
+            labels.append(
+                f"[{bonus.required_piece_count}部位発動]{bonus.set_name}:{bonus.bonus_type}:{bonus.bonus_description}"
+            )
+        return labels
+
+    def _active_set_bonus_keys(self, equipped: dict[str, str]) -> set[str]:
+        return {
+            f"{bonus.set_id}:{bonus.required_piece_count}:{bonus.bonus_type}"
+            for bonus in self._equipment_set_service.resolve_active_bonuses(equipped)
+        }
+
+    def _set_bonus_transition_lines(self, member: PartyMemberState) -> list[str]:
+        previous = self.active_set_bonus_keys_by_member.get(member.character_id, set())
+        current = self._active_set_bonus_keys(member.equipped)
+        lines: list[str] = []
+        for key in sorted(current - previous):
+            lines.append(f"set_bonus_activated:{member.character_id}:{key}")
+        for key in sorted(previous - current):
+            lines.append(f"set_bonus_deactivated:{member.character_id}:{key}")
+        self.active_set_bonus_keys_by_member[member.character_id] = set(current)
+        return lines
+
+    def _initialize_active_set_bonus_cache(self) -> None:
+        self.active_set_bonus_keys_by_member = {
+            member.character_id: self._active_set_bonus_keys(member.equipped) for member in self.party_members
+        }
 
     def usable_item_ids(self) -> list[str]:
         items = self.inventory_state.get("items", {})
