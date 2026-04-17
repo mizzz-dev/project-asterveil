@@ -317,5 +317,95 @@
       "completion_flag": "flag.ch01.workshop_supply_complete"
     },
     "target_location_id": "location.town.astel"
+  },
+  {
+    "quest_id": "quest.ch01.workshop_iron_delivery",
+    "id": "quest.ch01.workshop_iron_delivery",
+    "title": "工房定期依頼：鉄片補充",
+    "description": "工房の炉を維持するため、鉄片を2個納品する。",
+    "category": "workshop_order",
+    "repeatable": true,
+    "repeat_reset_rule": "on_return_to_hub",
+    "repeat_category": "workshop_supply",
+    "reaccept_message": "工房の鉄片補充依頼が再掲された。",
+    "reporting_npc_id": "npc.astel.workshop_master",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [
+        "flag.game.new_game_started"
+      ],
+      "min_level": 1
+    },
+    "objectives": [
+      {
+        "id": "obj.ch01.workshop_iron_turn_in",
+        "type": "turn_in_items",
+        "description": "鉄片を納品する。",
+        "required_items": [
+          {
+            "item_id": "item.material.iron_fragment",
+            "quantity": 2
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 70,
+      "gold": 55,
+      "items": [
+        {
+          "item_id": "item.consumable.focus_drop",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.ch01.workshop_iron_delivery_done"
+    },
+    "target_location_id": "location.town.astel"
+  },
+  {
+    "quest_id": "quest.ch01.workshop_tonic_order",
+    "id": "quest.ch01.workshop_tonic_order",
+    "title": "工房定期依頼：潮香トニック納品",
+    "description": "工房依頼として潮香トニックを1個納品する。",
+    "category": "workshop_order",
+    "repeatable": true,
+    "repeat_reset_rule": "manual_reaccept",
+    "repeat_category": "workshop_crafted",
+    "reaccept_message": "潮香トニックの追加納品依頼が再掲された。",
+    "reporting_npc_id": "npc.astel.workshop_master",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [
+        "flag.workshop.rank.2"
+      ],
+      "min_level": 1
+    },
+    "objectives": [
+      {
+        "id": "obj.ch01.workshop_tonic_turn_in",
+        "type": "turn_in_items",
+        "description": "潮香トニックを納品する。",
+        "required_items": [
+          {
+            "item_id": "item.consumable.memory_tonic",
+            "quantity": 1
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 90,
+      "gold": 70,
+      "items": [
+        {
+          "item_id": "item.material.memory_shard",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.ch01.workshop_tonic_order_done"
+    },
+    "target_location_id": "location.town.astel"
   }
 ]
