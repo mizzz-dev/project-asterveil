@@ -1,0 +1,46 @@
+[
+  {
+    "equipment_id": "equip.armor.tidebreaker_harness",
+    "upgrade_enabled": true,
+    "upgrade_levels": [
+      {
+        "upgrade_level": 1,
+        "required_workshop_level": 2,
+        "required_items": [
+          {
+            "item_id": "item.material.relic.deepsea_thread",
+            "quantity": 1
+          },
+          {
+            "item_id": "item.material.iron_fragment",
+            "quantity": 2
+          }
+        ],
+        "stat_bonus": {
+          "def": 2,
+          "hp": 8
+        },
+        "description": "深海繊維で裏打ちし、防具の防護性能を高める。"
+      },
+      {
+        "upgrade_level": 2,
+        "required_workshop_level": 3,
+        "required_items": [
+          {
+            "item_id": "item.material.miniboss.guardian_core",
+            "quantity": 1
+          },
+          {
+            "item_id": "item.material.relic.deepsea_thread",
+            "quantity": 1
+          }
+        ],
+        "stat_bonus": {
+          "def": 3,
+          "hp": 12
+        },
+        "description": "守護核の力を定着させ、守勢時の耐久をさらに強化する。"
+      }
+    ]
+  }
+]

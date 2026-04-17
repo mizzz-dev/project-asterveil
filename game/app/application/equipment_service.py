@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from game.save.domain.entities import PartyMemberState
 
@@ -38,8 +39,15 @@ class EquipmentResult:
 
 
 class EquipmentService:
-    def __init__(self, equipment_definitions: dict[str, EquipmentDefinition]) -> None:
+    def __init__(
+        self,
+        equipment_definitions: dict[str, EquipmentDefinition],
+        upgrade_bonus_resolver: Callable[[str], dict[str, int]] | None = None,
+        upgrade_level_resolver: Callable[[str], int] | None = None,
+    ) -> None:
         self._equipment_definitions = equipment_definitions
+        self._upgrade_bonus_resolver = upgrade_bonus_resolver
+        self._upgrade_level_resolver = upgrade_level_resolver
 
     def compute_bonuses(self, equipped: dict[str, str]) -> dict[str, int]:
         bonus = {key: 0 for key in STAT_KEYS}
@@ -49,7 +57,11 @@ class EquipmentService:
             definition = self._equipment_definitions.get(equipment_id)
             if definition is None:
                 continue
-            for key, value in definition.stat_modifiers.items():
+            merged_modifiers = dict(definition.stat_modifiers)
+            if self._upgrade_bonus_resolver is not None:
+                for key, value in self._upgrade_bonus_resolver(equipment_id).items():
+                    merged_modifiers[key] = int(merged_modifiers.get(key, 0)) + int(value)
+            for key, value in merged_modifiers.items():
                 normalized = "defense" if key == "def" else key
                 if normalized in bonus:
                     bonus[normalized] += int(value)
@@ -70,6 +82,13 @@ class EquipmentService:
         lines: list[str] = []
         for passive in self.equipped_passives(equipped):
             lines.append(f"{passive.passive_id}:{passive.passive_type}:{passive.description}")
+        if self._upgrade_level_resolver is not None:
+            for slot, equipment_id in equipped.items():
+                if slot not in VALID_SLOTS:
+                    continue
+                level = self._upgrade_level_resolver(equipment_id)
+                if level > 0:
+                    lines.append(f"upgrade_level:{equipment_id}:lv{level}")
         return lines
 
     def resolve_final_stats(self, member: PartyMemberState) -> dict[str, int]:
