@@ -1,0 +1,42 @@
+[
+  {
+    "equipment_id": "equip.weapon.bronze_blade",
+    "salvage_enabled": true,
+    "required_workshop_level": 1,
+    "base_returns": [
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      }
+    ],
+    "upgrade_bonus_returns": [],
+    "salvage_tags": [
+      "crafted",
+      "starter"
+    ],
+    "description": "初期鍛造の剣。鉄片として再利用できる。"
+  },
+  {
+    "equipment_id": "equip.armor.tidebreaker_harness",
+    "salvage_enabled": true,
+    "required_workshop_level": 3,
+    "base_returns": [
+      {
+        "item_id": "item.material.relic.deepsea_thread",
+        "quantity": 1
+      }
+    ],
+    "upgrade_bonus_returns": [
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 1
+      }
+    ],
+    "salvage_tags": [
+      "crafted",
+      "rare",
+      "miniboss"
+    ],
+    "description": "上位防具を分解し、深海繊維を回収する。強化段階ごとに鉄片を追加回収。"
+  }
+]

@@ -68,3 +68,5 @@ Vertical Slice 統合ランナー実装。
 クラフト/レシピ/素材消費の最小ループは `docs/CRAFTING_VERTICAL_SLICE.md` を参照。
 
 採取ポイント/素材収集の最小ループは `docs/GATHERING_VERTICAL_SLICE.md` を参照。
+
+装備分解/素材還元の最小ループは `docs/EQUIPMENT_SALVAGE_VERTICAL_SLICE.md` を参照。
