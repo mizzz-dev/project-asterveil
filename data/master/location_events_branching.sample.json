@@ -119,5 +119,61 @@
         ]
       }
     ]
+  },
+  {
+    "event_id": "event.field.tidal_flats.sunken_shrine_switch",
+    "location_id": "location.field.tidal_flats",
+    "name": "沈んだ祠の封印レバー",
+    "description": "半分沈んだ祠のレバー。静かに退くか、強引に引いて奥の気配を確かめるか選べる。",
+    "trigger_type": "manual_explore",
+    "repeatable": true,
+    "excluded_flags": [
+      "flag.miniboss.tidal_flats.guardian_defeated"
+    ],
+    "choices": [
+      {
+        "choice_id": "choice.leave_it",
+        "text": "一度退いて様子を見る",
+        "outcomes": [
+          {
+            "outcome_type": "show_message",
+            "params": {
+              "message": "レバーの奥から重い足音がした。慎重に準備した方が良さそうだ。"
+            }
+          },
+          {
+            "outcome_type": "grant_items",
+            "params": {
+              "item_id": "item.consumable.antidote_leaf",
+              "amount": "1"
+            }
+          },
+          {
+            "outcome_type": "set_flag",
+            "params": {
+              "flag_id": "flag.field_event.tidal_flats.miniboss_hint_seen"
+            }
+          }
+        ]
+      },
+      {
+        "choice_id": "choice.pull_lever",
+        "text": "レバーを引いて封印を解く",
+        "outcomes": [
+          {
+            "outcome_type": "show_message",
+            "params": {
+              "message": "封印が割れ、祠の守り手が姿を現した。"
+            }
+          },
+          {
+            "outcome_type": "start_miniboss_battle",
+            "params": {
+              "miniboss_id": "miniboss.ch01.tidal_flats.shrine_guardian"
+            }
+          }
+        ]
+      }
+    ]
   }
 ]

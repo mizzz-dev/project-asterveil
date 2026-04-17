@@ -1,0 +1,24 @@
+[
+  {
+    "miniboss_id": "miniboss.ch01.tidal_flats.shrine_guardian",
+    "encounter_id": "encounter.ch01.harbor_miasma_patrol",
+    "location_id": "location.field.tidal_flats",
+    "trigger_event_id": "event.field.tidal_flats.sunken_shrine_switch",
+    "display_name": "潮祠の守り手",
+    "first_clear_rewards": [
+      {
+        "item_id": "item.key.recipe_book.tidal_tonic_notes",
+        "amount": 1
+      }
+    ],
+    "repeat_rewards": [
+      {
+        "item_id": "item.material.memory_shard",
+        "amount": 1
+      }
+    ],
+    "defeat_flag": "flag.miniboss.tidal_flats.guardian_defeated",
+    "repeatable": false,
+    "description": "探索イベントの危険な選択でのみ遭遇する任意ミニボス。初回撃破時に特殊報酬を得る。"
+  }
+]

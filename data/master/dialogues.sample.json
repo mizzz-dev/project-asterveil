@@ -229,6 +229,35 @@
     ]
   },
   {
+    "entry_id": "dialogue.guard_miniboss_hint",
+    "npc_id": "npc.astel.guard",
+    "priority": 330,
+    "condition": {
+      "required_flags": [
+        "flag.field_event.tidal_flats.miniboss_hint_seen"
+      ],
+      "excluded_flags": [
+        "flag.miniboss.tidal_flats.guardian_defeated"
+      ]
+    },
+    "lines": [
+      "沈んだ祠の方で封印がきしむ音がしたわ。危険な選択だけど、準備できているなら挑んでみて。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.guard_miniboss_cleared",
+    "npc_id": "npc.astel.guard",
+    "priority": 331,
+    "condition": {
+      "required_flags": [
+        "flag.miniboss.tidal_flats.guardian_defeated"
+      ]
+    },
+    "lines": [
+      "潮祠の守り手を倒したのね。拾った手記が工房の役に立つはずよ。"
+    ]
+  },
+  {
     "entry_id": "dialogue.guard.turn_in_offer",
     "npc_id": "npc.astel.guard",
     "priority": 320,

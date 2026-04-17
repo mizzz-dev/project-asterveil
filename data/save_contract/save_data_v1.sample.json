@@ -61,6 +61,7 @@
     "gold": 320,
     "items": {
       "item.material.memory_shard": 3,
+      "item.key.recipe_book.tidal_tonic_notes": 1,
       "equip.weapon.bronze_blade": 1,
       "equip.weapon.iron_blade": 1,
       "equip.armor.leather_jacket": 1
@@ -84,8 +85,17 @@
       ],
       "field_event_choice_history": {
         "event.field.tidal_flats.drift_supply": "choice.safe_collect",
-        "event.field.tidal_flats.toxic_mushroom": "choice.harvest_patch"
+        "event.field.tidal_flats.toxic_mushroom": "choice.harvest_patch",
+        "event.field.tidal_flats.sunken_shrine_switch": "choice.pull_lever"
       }
+    },
+    "miniboss_state": {
+      "defeated_miniboss_ids": [
+        "miniboss.ch01.tidal_flats.shrine_guardian"
+      ],
+      "first_clear_reward_claimed_ids": [
+        "miniboss.ch01.tidal_flats.shrine_guardian"
+      ]
     },
     "gathering_state": {
       "gathered_node_ids": [
