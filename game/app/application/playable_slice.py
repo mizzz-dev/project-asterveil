@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from game.app.application.equipment_service import EquipmentService, VALID_SLOTS
+from game.app.application.equipment_upgrade_service import EquipmentUpgradeService
 from game.app.application.inn_service import InnService
 from game.app.application.item_use_service import ItemUseService
 from game.app.application.skill_learning_service import LearnableSkill, SkillLearningService
@@ -14,6 +15,7 @@ from game.app.application.facility_progression_service import FacilityProgressCo
 from game.app.application.reward_services import RewardApplicationService
 from game.app.application.workshop_progress_service import WorkshopProgressService, WorkshopProgressState
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
+from game.app.infrastructure.equipment_upgrade_repository import EquipmentUpgradeMasterDataRepository
 from game.app.infrastructure.facility_master_data_repository import FacilityMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.app.infrastructure.workshop_order_repository import WorkshopOrderMasterDataRepository
@@ -64,6 +66,7 @@ class PlayableSliceApplication:
         self._quest_repo = QuestMasterDataRepository(master_root)
         self._app_master_repo = AppMasterDataRepository(master_root)
         self._dialogue_event_repo = DialogueEventMasterDataRepository(master_root)
+        self._equipment_upgrade_repo = EquipmentUpgradeMasterDataRepository(master_root)
         self._facility_repo = FacilityMasterDataRepository(master_root)
         self._workshop_order_repo = WorkshopOrderMasterDataRepository(master_root)
         self._crafting_repo = CraftingMasterDataRepository(master_root)
@@ -98,6 +101,12 @@ class PlayableSliceApplication:
         self._item_definitions = self._app_master_repo.load_items()
         self._status_effect_definitions = self._app_master_repo.load_status_effects()
         self._equipment_definitions = self._app_master_repo.load_equipment()
+        self._equipment_upgrade_definitions = self._equipment_upgrade_repo.load(
+            valid_equipment_ids=set(self._equipment_definitions),
+            valid_item_ids=set(self._item_definitions),
+        )
+        self.equipment_upgrade_levels: dict[str, int] = {}
+        self._equipment_upgrade_service = EquipmentUpgradeService(self._equipment_upgrade_definitions)
         self._crafting_service = CraftingService()
         self._recipe_unlock_service = RecipeUnlockService()
         self._crafting_recipes = self._crafting_repo.load_recipes(
@@ -113,7 +122,16 @@ class PlayableSliceApplication:
         self._workshop_progress_service = WorkshopProgressService()
         self._workshop_order_definitions, self._workshop_rank_definitions = self._workshop_order_repo.load()
         self._workshop_npc_ids = self._crafting_repo.load_workshop_npc_ids()
-        self._equipment_service = EquipmentService(self._equipment_definitions)
+        self._equipment_service = EquipmentService(
+            self._equipment_definitions,
+            upgrade_bonus_resolver=lambda equipment_id: self._equipment_upgrade_service.stat_bonus_for_equipment(
+                equipment_id=equipment_id,
+                equipment_upgrade_levels=self.equipment_upgrade_levels,
+            ),
+            upgrade_level_resolver=lambda equipment_id: self._equipment_upgrade_service.current_level(
+                equipment_id, self.equipment_upgrade_levels
+            ),
+        )
         self._shops = self._shop_repo.load_shops()
         self._shop_service = ShopService(self._shops, self._item_definitions)
         self._inns = self._app_master_repo.load_inns()
@@ -198,6 +216,7 @@ class PlayableSliceApplication:
         self.turn_in_completion_count = 0
         self.workshop_progress_state = WorkshopProgressState()
         self.workshop_order_completion_counts = {}
+        self.equipment_upgrade_levels = {}
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
         self._initialize_facility_state()
         self._initialize_workshop_progress_state()
@@ -269,6 +288,19 @@ class PlayableSliceApplication:
             str(order_id): int(count)
             for order_id, count in workshop_meta.get("order_completion_counts", {}).items()
         }
+        equipment_meta = save_data.meta.get("equipment_state", {})
+        self.equipment_upgrade_levels = {
+            str(equipment_id): int(level)
+            for equipment_id, level in equipment_meta.get("upgrade_levels", {}).items()
+            if int(level) > 0
+        }
+        unknown_upgrade_ids = sorted(
+            equipment_id
+            for equipment_id in self.equipment_upgrade_levels
+            if equipment_id not in self._equipment_upgrade_definitions
+        )
+        if unknown_upgrade_ids:
+            raise ValueError(f"save_data has unknown equipment upgrade ids={unknown_upgrade_ids}")
         if HUB_LOCATION_ID not in self.location_state.unlocked_location_ids:
             self.location_state.unlocked_location_ids.add(HUB_LOCATION_ID)
         self._travel_service.evaluate_unlocks(self.location_state, self.quest_session.world_flags)
@@ -288,6 +320,7 @@ class PlayableSliceApplication:
             ActionItem("inventory", "所持品確認"),
             ActionItem("use_item", "アイテムを使う"),
             ActionItem("equip", "装備変更"),
+            ActionItem("upgrade_equipment", "装備強化"),
             ActionItem("shop", "ショップに行く"),
             ActionItem("craft", "クラフトする"),
             ActionItem("inn", "宿屋に泊まる"),
@@ -348,6 +381,8 @@ class PlayableSliceApplication:
             return self._usable_item_lines()
         if action_key == "equip":
             return self.equipment_overview_lines()
+        if action_key == "upgrade_equipment":
+            return self.workshop_equipment_upgrade_lines()
         if action_key == "shop":
             return self.shop_catalog_lines()
         if action_key == "craft":
@@ -496,6 +531,9 @@ class PlayableSliceApplication:
                     "unlocked_recipe_ids": sorted(self.facility_unlocked_recipe_ids),
                     "unlocked_shop_stock_ids": sorted(self.facility_unlocked_shop_stock_ids),
                     "turn_in_completion_count": self.turn_in_completion_count,
+                },
+                "equipment_state": {
+                    "upgrade_levels": dict(sorted(self.equipment_upgrade_levels.items())),
                 },
                 "workshop_state": {
                     "rank": self.workshop_progress_state.level,
@@ -841,6 +879,7 @@ class PlayableSliceApplication:
         if npc_id in self._workshop_npc_ids:
             lines.extend(self.workshop_recipe_lines(npc_id))
             lines.extend(self.workshop_progress_lines())
+            lines.extend(self.workshop_equipment_upgrade_lines())
         return lines
 
     def _run_dialogue_choice_effect(self, action_type: str, params: dict[str, str]) -> list[str]:
@@ -1093,6 +1132,70 @@ class PlayableSliceApplication:
             )
         return options
 
+    def workshop_equipment_upgrade_lines(self) -> list[str]:
+        lines = [
+            f"workshop_rank:workshop:{self.workshop_progress_state.level}",
+            "equipment_upgrade:status",
+        ]
+        options = self.upgradable_equipment_options()
+        if not options:
+            lines.append("equipment_upgrade:none")
+            return lines
+        for equipment_id, _ in options:
+            evaluation = self._equipment_upgrade_service.evaluate_upgrade(
+                equipment_id=equipment_id,
+                equipment_upgrade_levels=self.equipment_upgrade_levels,
+                inventory_items=self.inventory_state.get("items", {}),
+                workshop_level=self.workshop_progress_state.level,
+            )
+            state_tag = {
+                "upgradable": "[強化可能]",
+                "insufficient_materials": "[素材不足]",
+                "insufficient_workshop_level": "[工房ランク不足]",
+                "max_level": "[最大強化]",
+            }.get(evaluation.code, "[未対応]")
+            material_summary = "none"
+            next_level = evaluation.next_level
+            if next_level is not None:
+                material_summary = ",".join(
+                    f"{req.item_id}:{self.inventory_state.get('items', {}).get(req.item_id, 0)}/{req.quantity}"
+                    for req in next_level.required_items
+                )
+            lines.append(
+                f"equipment_upgrade_status:{equipment_id}:current_level={evaluation.current_level}:"
+                f"max_level={evaluation.max_level}:next_workshop_level={next_level.required_workshop_level if next_level else '-'}:"
+                f"required_items={material_summary}:status={state_tag}"
+            )
+        return lines
+
+    def upgradable_equipment_options(self) -> list[tuple[str, str]]:
+        options: list[tuple[str, str]] = []
+        for equipment_id, definition in sorted(self._equipment_upgrade_definitions.items()):
+            if not definition.upgrade_enabled:
+                continue
+            owned = int(self.inventory_state.get("items", {}).get(equipment_id, 0))
+            if owned <= 0:
+                continue
+            current_level = self._equipment_upgrade_service.current_level(equipment_id, self.equipment_upgrade_levels)
+            max_level = max((level.upgrade_level for level in definition.upgrade_levels), default=0)
+            name = self._equipment_definitions.get(equipment_id).name if equipment_id in self._equipment_definitions else equipment_id
+            options.append((equipment_id, f"{name} ({equipment_id}) 強化段階 {current_level}/{max_level}"))
+        return options
+
+    def upgrade_equipment(self, equipment_id: str) -> list[str]:
+        result = self._equipment_upgrade_service.apply_upgrade(
+            equipment_id=equipment_id,
+            equipment_upgrade_levels=self.equipment_upgrade_levels,
+            inventory_state=self.inventory_state,
+            workshop_level=self.workshop_progress_state.level,
+        )
+        lines = [result.message]
+        if not result.success:
+            return lines
+        lines.append(f"upgrade_level:+1:{equipment_id}:current={result.applied_level}")
+        lines.extend(self.equipment_overview_lines())
+        return lines
+
     def equip_item(self, character_id: str, slot_type: str, equipment_id: str) -> list[str]:
         result = self._equipment_service.equip_item(
             party_members=self.party_members,
@@ -1110,10 +1213,16 @@ class PlayableSliceApplication:
         lines: list[str] = []
         for member in self.party_members:
             final = self._equipment_service.resolve_final_stats(member)
+            equipped_upgrade_levels = {
+                slot: self._equipment_upgrade_service.current_level(equipment_id, self.equipment_upgrade_levels)
+                for slot, equipment_id in member.equipped.items()
+                if equipment_id
+            }
             lines.append(
                 f"member:{member.character_id}:lv={member.level}:exp={member.current_exp}/{member.next_level_exp}:"
                 f"hp={final['current_hp']}/{final['max_hp']}:sp={final['current_sp']}/{final['max_sp']}:"
                 f"atk={final['atk']}:def={final['defense']}:spd={final['spd']}:equipped={member.equipped}:"
+                f"equipment_upgrade_levels={equipped_upgrade_levels}:"
                 f"effects={[f'{effect.effect_id}:{effect.remaining_turns}' for effect in member.active_effects]}:"
                 f"skills={member.unlocked_skill_ids}:"
                 f"passives={self._equipment_service.passive_summary(member.equipped)}"
@@ -1458,11 +1567,41 @@ class PlayableSliceApplication:
     def _run_event_battle(self, encounter_id: str) -> list[str]:
         if self.quest_session is None:
             raise ValueError("ゲームが開始されていません。")
+        battle_party = []
+        for member in self.party_members:
+            final = self._equipment_service.resolve_final_stats(member)
+            battle_party.append(
+                PartyMemberState(
+                    character_id=member.character_id,
+                    level=member.level,
+                    current_exp=member.current_exp,
+                    next_level_exp=member.next_level_exp,
+                    max_hp=final["max_hp"],
+                    current_hp=final["current_hp"],
+                    max_sp=final["max_sp"],
+                    current_sp=final["current_sp"],
+                    atk=final["atk"],
+                    defense=final["defense"],
+                    spd=final["spd"],
+                    alive=member.alive,
+                    equipped=dict(member.equipped),
+                    unlocked_skill_ids=list(member.unlocked_skill_ids),
+                    active_effects=[effect for effect in member.active_effects],
+                )
+            )
         try:
-            battle_result = self._battle_executor(encounter_id, self.party_members)
+            battle_result = self._battle_executor(encounter_id, battle_party)
         except TypeError:
             battle_result = self._battle_executor(encounter_id)
         logs = [f"battle_finished:{encounter_id}:player_won={battle_result.player_won}"]
+        for member in battle_party:
+            actual = next((m for m in self.party_members if m.character_id == member.character_id), None)
+            if actual is None:
+                continue
+            actual.current_hp = max(0, member.current_hp)
+            actual.current_sp = max(0, member.current_sp)
+            actual.alive = bool(member.alive and member.current_hp > 0)
+            actual.active_effects = [effect for effect in member.active_effects]
         if battle_result.player_won:
             battle_reward = self._battle_rewards.get(encounter_id)
             if battle_reward is not None:

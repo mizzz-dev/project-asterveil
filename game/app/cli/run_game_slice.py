@@ -117,6 +117,22 @@ def _run_equipment_flow(app: PlayableSliceApplication) -> list[str]:
     return app.equip_item(selected_member, slot_type, selected_equipment)
 
 
+
+
+def _run_equipment_upgrade_flow(app: PlayableSliceApplication) -> list[str]:
+    lines = app.workshop_equipment_upgrade_lines()
+    for line in lines:
+        print(f"- {line}")
+    options = [("cancel", "強化しない")]
+    options.extend(app.upgradable_equipment_options())
+    if len(options) == 1:
+        return ["equipment_upgrade:none"]
+    selected = _choose(options)
+    if selected == "cancel":
+        return ["equipment_upgrade_cancelled"]
+    return app.upgrade_equipment(selected)
+
+
 def _run_quest_board_flow(app: PlayableSliceApplication) -> list[str]:
     lines = app.quest_board_lines()
     for line in lines:
@@ -266,6 +282,8 @@ def run_playable_vertical_slice(save_path: Path) -> int:
                 logs = _run_equipment_flow(app)
             elif selected == "shop":
                 logs = _run_shop_flow(app)
+            elif selected == "upgrade_equipment":
+                logs = _run_equipment_upgrade_flow(app)
             elif selected == "craft":
                 logs = _run_crafting_flow(app)
             elif selected == "inn":
