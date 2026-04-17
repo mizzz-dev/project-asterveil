@@ -220,5 +220,37 @@
     },
     "visible_before_unlock": true,
     "unlock_message": "工房ランク3に到達し、潮断の戦装鍛造を扱えるようになった。"
+  },
+  {
+    "recipe_id": "recipe.craft.tidecrest_ring",
+    "name": "潮紋リング鍛造",
+    "category": "equipment",
+    "ingredients": [
+      {
+        "item_id": "item.material.relic.deepsea_thread",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.material.iron_fragment",
+        "quantity": 2
+      }
+    ],
+    "outputs": [
+      {
+        "equipment_id": "equip.accessory.tidecrest_ring",
+        "quantity": 1
+      }
+    ],
+    "recipe_tier": "advanced",
+    "required_workshop_level": 3,
+    "required_recipe_discovery": "recipe_book.astel.tidebreaker_notes",
+    "description": "潮断の戦装と共鳴する補助リング。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.workshop.rank.3"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "潮紋リング鍛造が工房メモに追加された。"
   }
 ]

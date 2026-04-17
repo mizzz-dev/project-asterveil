@@ -40,7 +40,12 @@ class CraftingSliceTests(unittest.TestCase):
                 "equip.weapon.memory_edge",
                 "equip.armor.tidebreaker_harness",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem", "equip.armor.tidebreaker_harness"},
+            valid_equipment_ids={
+                "equip.weapon.memory_edge",
+                "equip.armor.vanguard_emblem",
+                "equip.armor.tidebreaker_harness",
+                "equip.accessory.tidecrest_ring",
+            },
         )
         self.assertIn("recipe.craft.memory_tonic", recipes)
         self.assertIn("recipe.craft.memory_edge", recipes)
@@ -108,7 +113,12 @@ class CraftingSliceTests(unittest.TestCase):
                 "item.material.miniboss.guardian_core",
                 "item.material.relic.deepsea_thread",
             },
-            valid_equipment_ids={"equip.weapon.memory_edge", "equip.armor.vanguard_emblem", "equip.armor.tidebreaker_harness"},
+            valid_equipment_ids={
+                "equip.weapon.memory_edge",
+                "equip.armor.vanguard_emblem",
+                "equip.armor.tidebreaker_harness",
+                "equip.accessory.tidecrest_ring",
+            },
         )
         unlock_service = RecipeUnlockService()
         unlocked_recipe_ids: set[str] = set()

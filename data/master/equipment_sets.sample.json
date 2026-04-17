@@ -1,0 +1,45 @@
+[
+  {
+    "set_id": "set.tidebreaker.assault",
+    "name": "潮断共鳴セット",
+    "description": "潮祠素材と工房鍛造装備を組み合わせた段階式セット。",
+    "member_equipment_ids": [
+      "equip.weapon.memory_edge",
+      "equip.armor.tidebreaker_harness",
+      "equip.accessory.tidecrest_ring"
+    ],
+    "set_bonuses": [
+      {
+        "required_piece_count": 2,
+        "bonus_type": "stat_bonus",
+        "parameters": {
+          "atk": 3,
+          "def": 2
+        },
+        "bonus_description": "2部位で攻防が上昇する。"
+      },
+      {
+        "required_piece_count": 3,
+        "bonus_type": "stat_bonus",
+        "parameters": {
+          "atk": 2,
+          "spd": 1
+        },
+        "bonus_description": "3部位でさらに攻撃と速度が上昇する。"
+      },
+      {
+        "required_piece_count": 3,
+        "bonus_type": "status_resistance",
+        "parameters": {
+          "passive_id": "passive.set.tidebreaker.poison_guard",
+          "passive_type": "status_resistance",
+          "target": "self",
+          "parameters": {
+            "effect_id": "effect.ailment.poison"
+          }
+        },
+        "bonus_description": "3部位で毒耐性を得る。"
+      }
+    ]
+  }
+]
