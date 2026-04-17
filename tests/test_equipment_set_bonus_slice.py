@@ -157,6 +157,45 @@ class EquipmentSetBonusSliceTests(unittest.TestCase):
             self.assertTrue(any("set_bonus_deactivated:char.main.rion:set.tidebreaker.assault:3:stat_bonus" in line for line in remove_logs))
             self.assertTrue(any("set_bonus_deactivated:char.main.rion:set.tidebreaker.assault:3:status_resistance" in line for line in remove_logs))
 
+    def test_set_bonus_keeps_active_with_upgraded_equipment_and_after_save_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            app = PlayableSliceApplication(
+                master_root=Path("data/master"),
+                save_file_path=Path(tmp_dir) / "slot_01.json",
+            )
+            app.new_game()
+
+            app.inventory_state["items"]["equip.weapon.memory_edge"] = 1
+            app.inventory_state["items"]["equip.armor.tidebreaker_harness"] = 1
+            app.inventory_state["items"]["equip.accessory.tidecrest_ring"] = 1
+            app.inventory_state["items"]["item.material.relic.deepsea_thread"] = 3
+            app.inventory_state["items"]["item.material.iron_fragment"] = 5
+            app.inventory_state["items"]["item.material.guardian_core"] = 5
+            app.workshop_progress_state.level = 4
+
+            app.equip_item("char.main.rion", "weapon", "equip.weapon.memory_edge")
+            app.equip_item("char.main.rion", "armor", "equip.armor.tidebreaker_harness")
+            app.equip_item("char.main.rion", "accessory", "equip.accessory.tidecrest_ring")
+            before_upgrade = app.perform_action("status")
+            self.assertTrue(any("[3部位発動]潮断共鳴セット:status_resistance:3部位で毒耐性を得る。" in line for line in before_upgrade))
+
+            upgrade_logs = app.upgrade_equipment("equip.armor.tidebreaker_harness")
+            self.assertIn("equipment_upgrade_success:equip.armor.tidebreaker_harness:upgrade_level:+1:current=1", upgrade_logs)
+            after_upgrade = app.perform_action("status")
+            self.assertTrue(any("upgrade_level:equip.armor.tidebreaker_harness:lv1" in line for line in after_upgrade))
+            self.assertTrue(any("[3部位発動]潮断共鳴セット:stat_bonus:3部位でさらに攻撃と速度が上昇する。" in line for line in after_upgrade))
+
+            app.perform_action("save")
+            resumed = PlayableSliceApplication(
+                master_root=Path("data/master"),
+                save_file_path=Path(tmp_dir) / "slot_01.json",
+            )
+            ok, _ = resumed.continue_game()
+            self.assertTrue(ok)
+            resumed_status = resumed.perform_action("status")
+            self.assertTrue(any("upgrade_level:equip.armor.tidebreaker_harness:lv1" in line for line in resumed_status))
+            self.assertTrue(any("[3部位発動]潮断共鳴セット:status_resistance:3部位で毒耐性を得る。" in line for line in resumed_status))
+
     def test_set_equipment_connected_to_advanced_crafting_and_miniboss_material(self) -> None:
         repo = CraftingMasterDataRepository(Path("data/master"))
         app_repo = AppMasterDataRepository(Path("data/master"))
