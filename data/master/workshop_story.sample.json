@@ -1,0 +1,62 @@
+[
+  {
+    "storyline_id": "workshop.story.yeld.rank1_intro",
+    "npc_id": "npc.astel.workshop_master",
+    "required_workshop_level": 1,
+    "required_flags": [
+      "flag.hub.facility.workshop.level1"
+    ],
+    "dialogue_id": "dialogue.workshop.story.rank1_intro",
+    "description": "工房主イェルドが、まずは定期納品で工房を安定させる目標を提示する。",
+    "priority": 100
+  },
+  {
+    "storyline_id": "workshop.story.luca.rank2_goal",
+    "npc_id": "npc.astel.workshop_apprentice",
+    "required_workshop_level": 2,
+    "required_flags": [
+      "flag.workshop.rank.2"
+    ],
+    "dialogue_id": "dialogue.workshop.story.rank2_goal",
+    "description": "弟子ルカが、上位探索依頼へ向けた準備と目的地の手がかりを共有する。",
+    "priority": 200
+  },
+  {
+    "storyline_id": "workshop.story.yeld.rank3_order_unlock",
+    "npc_id": "npc.astel.workshop_master",
+    "required_workshop_level": 2,
+    "required_flags": [
+      "flag.workshop.rank.2"
+    ],
+    "dialogue_id": "dialogue.workshop.story.rank3_order_unlock",
+    "description": "工房ランク3相当を目指すため、深海繊維の上位探索納品依頼を解放する。",
+    "priority": 300,
+    "unlock_rewards": {
+      "quest_ids": [
+        "quest.ch01.workshop_rank3_expedition"
+      ],
+      "flag_ids": [
+        "flag.workshop.story.rank3.order_unlocked"
+      ]
+    }
+  },
+  {
+    "storyline_id": "workshop.story.luca.rank3_recipe_unlock",
+    "npc_id": "npc.astel.workshop_apprentice",
+    "required_workshop_level": 3,
+    "required_flags": [
+      "flag.workshop.story.rank3.order_completed"
+    ],
+    "dialogue_id": "dialogue.workshop.story.rank3_recipe_unlock",
+    "description": "上位探索依頼の達成後、弟子ルカが高純度研磨剤レシピを解禁する。",
+    "priority": 400,
+    "unlock_rewards": {
+      "recipe_ids": [
+        "recipe.craft.workshop_oceanic_polish"
+      ],
+      "flag_ids": [
+        "flag.workshop.story.rank3.recipe_unlocked"
+      ]
+    }
+  }
+]

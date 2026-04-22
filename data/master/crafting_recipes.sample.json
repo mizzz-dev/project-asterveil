@@ -252,5 +252,36 @@
     },
     "visible_before_unlock": true,
     "unlock_message": "潮紋リング鍛造が工房メモに追加された。"
+  },
+  {
+    "recipe_id": "recipe.craft.workshop_oceanic_polish",
+    "name": "深潮研磨剤調合",
+    "category": "consumable",
+    "ingredients": [
+      {
+        "item_id": "item.material.relic.deepsea_thread",
+        "quantity": 1
+      },
+      {
+        "item_id": "item.material.miniboss.guardian_core",
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "item_id": "item.consumable.focus_drop",
+        "quantity": 2
+      }
+    ],
+    "recipe_tier": "advanced",
+    "required_workshop_level": 3,
+    "description": "深海繊維を守護核で精製する上位工房用の研磨剤。",
+    "unlock_conditions": {
+      "required_flags": [
+        "flag.workshop.story.rank3.recipe_unlocked"
+      ]
+    },
+    "visible_before_unlock": true,
+    "unlock_message": "工房助手ルカが深潮研磨剤の配合を公開した。"
   }
 ]

@@ -407,5 +407,48 @@
       "completion_flag": "flag.ch01.workshop_tonic_order_done"
     },
     "target_location_id": "location.town.astel"
+  },
+  {
+    "quest_id": "quest.ch01.workshop_rank3_expedition",
+    "id": "quest.ch01.workshop_rank3_expedition",
+    "title": "工房上位探索依頼：深海繊維の納品",
+    "description": "工房ランク3相当の依頼。干潟で見つかる深海繊維を1個納品する。",
+    "category": "workshop_order",
+    "repeatable": false,
+    "reporting_npc_id": "npc.astel.workshop_apprentice",
+    "availability": {
+      "required_quest_ids": [],
+      "required_flags": [
+        "flag.workshop.story.rank3.order_unlocked",
+        "flag.workshop.rank.3"
+      ],
+      "min_level": 1
+    },
+    "objectives": [
+      {
+        "id": "obj.ch01.workshop_rank3_turn_in",
+        "type": "turn_in_items",
+        "description": "深海繊維を納品する。",
+        "required_items": [
+          {
+            "item_id": "item.material.relic.deepsea_thread",
+            "quantity": 1
+          }
+        ],
+        "allow_partial_turn_in": false
+      }
+    ],
+    "reward": {
+      "exp": 130,
+      "gold": 110,
+      "items": [
+        {
+          "item_id": "item.material.miniboss.guardian_core",
+          "amount": 1
+        }
+      ],
+      "completion_flag": "flag.workshop.story.rank3.order_completed"
+    },
+    "target_location_id": "location.town.astel"
   }
 ]

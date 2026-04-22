@@ -925,5 +925,50 @@
     "lines": [
       "今の工房ランクは1だ。納品依頼を片づければ設備を増強できる。"
     ]
+  },
+  {
+    "entry_id": "dialogue.workshop.apprentice.rank1",
+    "npc_id": "npc.astel.workshop_apprentice",
+    "priority": 100,
+    "condition": {
+      "required_flags": [
+        "flag.hub.facility.workshop.level1"
+      ],
+      "excluded_flags": [
+        "flag.workshop.rank.2"
+      ]
+    },
+    "lines": [
+      "私は助手のルカです。まずは鉄片の定期納品で工房記録を安定させましょう。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.apprentice.rank2",
+    "npc_id": "npc.astel.workshop_apprentice",
+    "priority": 200,
+    "condition": {
+      "required_flags": [
+        "flag.workshop.rank.2"
+      ],
+      "excluded_flags": [
+        "flag.workshop.story.rank3.order_completed"
+      ]
+    },
+    "lines": [
+      "ランク2到達おめでとうございます。干潟の隠し包みから深海繊維を確保できれば、ランク3相当の依頼に進めます。"
+    ]
+  },
+  {
+    "entry_id": "dialogue.workshop.apprentice.rank3_after",
+    "npc_id": "npc.astel.workshop_apprentice",
+    "priority": 260,
+    "condition": {
+      "required_flags": [
+        "flag.workshop.story.rank3.order_completed"
+      ]
+    },
+    "lines": [
+      "上位探索依頼の達成確認済みです。希少素材向けの研磨剤レシピを運用記録へ追加しておきます。"
+    ]
   }
 ]
