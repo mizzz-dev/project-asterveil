@@ -22,5 +22,13 @@
     "fallback_lines": [
       "素材と発見したレシピを持ってきな。すぐ調合できるぞ。"
     ]
+  },
+  {
+    "npc_id": "npc.astel.workshop_apprentice",
+    "npc_name": "工房助手ルカ",
+    "location_id": "location.town.astel",
+    "fallback_lines": [
+      "工房の記録をまとめています。次の目標が決まったら声をかけてください。"
+    ]
   }
 ]

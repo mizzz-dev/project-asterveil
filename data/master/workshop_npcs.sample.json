@@ -4,5 +4,11 @@
     "name": "工房主イェルド",
     "location_id": "location.town.astel",
     "default_message": "工房にようこそ。見つけたレシピはここで確認できる。"
+  },
+  {
+    "workshop_npc_id": "npc.astel.workshop_apprentice",
+    "name": "工房助手ルカ",
+    "location_id": "location.town.astel",
+    "default_message": "上位依頼の進捗と素材の用途を整理して案内します。"
   }
 ]

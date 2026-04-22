@@ -16,12 +16,14 @@ from game.app.application.dialogue_event_service import DialogueService, Locatio
 from game.app.application.facility_progression_service import FacilityProgressContext, FacilityProgressService
 from game.app.application.reward_services import RewardApplicationService
 from game.app.application.workshop_progress_service import WorkshopProgressService, WorkshopProgressState
+from game.app.application.workshop_story_service import WorkshopStoryService, WorkshopStoryState
 from game.app.infrastructure.dialogue_event_repository import DialogueEventMasterDataRepository
 from game.app.infrastructure.equipment_salvage_repository import EquipmentSalvageMasterDataRepository
 from game.app.infrastructure.equipment_upgrade_repository import EquipmentUpgradeMasterDataRepository
 from game.app.infrastructure.facility_master_data_repository import FacilityMasterDataRepository
 from game.app.infrastructure.master_data_repository import AppMasterDataRepository
 from game.app.infrastructure.workshop_order_repository import WorkshopOrderMasterDataRepository
+from game.app.infrastructure.workshop_story_repository import WorkshopStoryMasterDataRepository
 from game.crafting.domain.entities import CraftingRecipeDefinition
 from game.crafting.domain.services import CraftingService, RecipeDiscoveryService, RecipeUnlockService
 from game.crafting.infrastructure.master_data_repository import CraftingMasterDataRepository
@@ -73,6 +75,7 @@ class PlayableSliceApplication:
         self._equipment_upgrade_repo = EquipmentUpgradeMasterDataRepository(master_root)
         self._facility_repo = FacilityMasterDataRepository(master_root)
         self._workshop_order_repo = WorkshopOrderMasterDataRepository(master_root)
+        self._workshop_story_repo = WorkshopStoryMasterDataRepository(master_root)
         self._crafting_repo = CraftingMasterDataRepository(master_root)
         self._gathering_repo = GatheringNodeMasterDataRepository(master_root)
         self._treasure_repo = TreasureMasterDataRepository(master_root)
@@ -176,6 +179,14 @@ class PlayableSliceApplication:
         self._dialogue_service = DialogueService(self._dialogue_event_repo.load_npc_dialogues())
         self._location_event_service = LocationEventService(self._dialogue_event_repo.load_location_events())
         self._field_event_service = FieldEventService(self._field_event_repo.load_events())
+        self._workshop_story_service = WorkshopStoryService()
+        self._workshop_story_definitions = self._workshop_story_repo.load(
+            valid_npc_ids=set(self._dialogue_service.npc_definitions),
+            valid_quest_ids=set(self._quest_board_service.definitions),
+            valid_recipe_ids=set(self._crafting_recipes),
+            valid_location_ids=set(self._location_definitions),
+            valid_field_event_ids=set(self._field_event_service.definitions),
+        )
 
         self.quest_session: QuestSliceSession | None = None
         self.party_members: list[PartyMemberState] = []
@@ -196,6 +207,7 @@ class PlayableSliceApplication:
         self.facility_unlocked_shop_stock_ids: set[str] = set()
         self.turn_in_completion_count: int = 0
         self.workshop_progress_state = WorkshopProgressState()
+        self.workshop_story_state = WorkshopStoryState()
         self.workshop_order_completion_counts: dict[str, int] = {}
         self.active_set_bonus_keys_by_member: dict[str, set[str]] = {}
         self.location_state = LocationState(current_location_id=HUB_LOCATION_ID, unlocked_location_ids={HUB_LOCATION_ID})
@@ -229,6 +241,7 @@ class PlayableSliceApplication:
         self.facility_unlocked_shop_stock_ids = set()
         self.turn_in_completion_count = 0
         self.workshop_progress_state = WorkshopProgressState()
+        self.workshop_story_state = WorkshopStoryState()
         self.workshop_order_completion_counts = {}
         self.equipment_upgrade_levels = {}
         self.active_set_bonus_keys_by_member = {}
@@ -299,6 +312,14 @@ class PlayableSliceApplication:
             progress=max(0, int(workshop_meta.get("progress", 0))),
             unlocked_recipe_ids=set(workshop_meta.get("unlocked_recipe_ids", [])),
             applied_completion_markers=set(workshop_meta.get("applied_completion_markers", [])),
+        )
+        workshop_story_meta = save_data.meta.get("workshop_story_state", {})
+        self.workshop_story_state = WorkshopStoryState(
+            seen_stage_ids=set(workshop_story_meta.get("seen_stage_ids", [])),
+            unlocked_quest_ids=set(workshop_story_meta.get("unlocked_quest_ids", [])),
+            unlocked_recipe_ids=set(workshop_story_meta.get("unlocked_recipe_ids", [])),
+            unlocked_location_ids=set(workshop_story_meta.get("unlocked_location_ids", [])),
+            unlocked_field_event_ids=set(workshop_story_meta.get("unlocked_field_event_ids", [])),
         )
         self.workshop_order_completion_counts = {
             str(order_id): int(count)
@@ -561,6 +582,13 @@ class PlayableSliceApplication:
                     "unlocked_recipe_ids": sorted(self.workshop_progress_state.unlocked_recipe_ids),
                     "order_completion_counts": dict(sorted(self.workshop_order_completion_counts.items())),
                     "applied_completion_markers": sorted(self.workshop_progress_state.applied_completion_markers),
+                },
+                "workshop_story_state": {
+                    "seen_stage_ids": sorted(self.workshop_story_state.seen_stage_ids),
+                    "unlocked_quest_ids": sorted(self.workshop_story_state.unlocked_quest_ids),
+                    "unlocked_recipe_ids": sorted(self.workshop_story_state.unlocked_recipe_ids),
+                    "unlocked_location_ids": sorted(self.workshop_story_state.unlocked_location_ids),
+                    "unlocked_field_event_ids": sorted(self.workshop_story_state.unlocked_field_event_ids),
                 },
             },
         )
@@ -848,61 +876,89 @@ class PlayableSliceApplication:
         entry = resolved.entry
         if entry is None or not entry.steps:
             lines.extend(f"line:{resolved.npc_id}:{line}" for line in resolved.lines)
-            return lines
-
-        current_step = self._dialogue_service.initial_step(entry)
-        while current_step is not None:
-            lines.extend(f"line:{current_step.speaker}:{line}" for line in current_step.lines)
-            available_choices = self._dialogue_service.available_choices(current_step, self.quest_session.world_flags)
-            if not available_choices:
-                break
-            lines.extend(
-                f"choice:{index}:{choice.choice_id}:{choice.text}"
-                for index, choice in enumerate(available_choices, start=1)
-            )
-            if choice_selector is None:
-                lines.append(f"dialogue_choice_pending:step={current_step.step_id}")
-                break
-            selected_choice_id = choice_selector(
-                [(choice.choice_id, choice.text) for choice in available_choices],
-                current_step.step_id,
-            )
-            choice_result = self._dialogue_service.apply_choice(
-                entry=entry,
-                step_id=current_step.step_id,
-                choice_id=selected_choice_id,
-                world_flags=self.quest_session.world_flags,
-            )
-            if not choice_result.success:
-                lines.append(choice_result.code)
-                break
-            lines.append(f"choice_selected:{current_step.step_id}:{choice_result.selected_choice_id}")
-            for flag_id in choice_result.set_flags:
-                self.quest_session.world_flags.add(flag_id)
-                lines.append(f"flag_set:{flag_id}")
-            lines.extend(self._evaluate_recipe_unlocks())
-            should_end = False
-            for effect in choice_result.effects:
-                effect_logs = self._run_dialogue_choice_effect(effect.action_type, effect.params)
-                lines.extend(effect_logs)
-                if effect.action_type == "end_dialogue":
-                    should_end = True
-            if should_end:
-                break
-            if not choice_result.next_step_id:
-                break
-            current_step = self._dialogue_service.find_step(entry, choice_result.next_step_id)
-            if current_step is None:
-                lines.append(f"dialogue_choice_failed:next_step_not_found:{choice_result.next_step_id}")
-                break
+        else:
+            current_step = self._dialogue_service.initial_step(entry)
+            while current_step is not None:
+                lines.extend(f"line:{current_step.speaker}:{line}" for line in current_step.lines)
+                available_choices = self._dialogue_service.available_choices(current_step, self.quest_session.world_flags)
+                if not available_choices:
+                    break
+                lines.extend(
+                    f"choice:{index}:{choice.choice_id}:{choice.text}"
+                    for index, choice in enumerate(available_choices, start=1)
+                )
+                if choice_selector is None:
+                    lines.append(f"dialogue_choice_pending:step={current_step.step_id}")
+                    break
+                selected_choice_id = choice_selector(
+                    [(choice.choice_id, choice.text) for choice in available_choices],
+                    current_step.step_id,
+                )
+                choice_result = self._dialogue_service.apply_choice(
+                    entry=entry,
+                    step_id=current_step.step_id,
+                    choice_id=selected_choice_id,
+                    world_flags=self.quest_session.world_flags,
+                )
+                if not choice_result.success:
+                    lines.append(choice_result.code)
+                    break
+                lines.append(f"choice_selected:{current_step.step_id}:{choice_result.selected_choice_id}")
+                for flag_id in choice_result.set_flags:
+                    self.quest_session.world_flags.add(flag_id)
+                    lines.append(f"flag_set:{flag_id}")
+                lines.extend(self._evaluate_recipe_unlocks())
+                should_end = False
+                for effect in choice_result.effects:
+                    effect_logs = self._run_dialogue_choice_effect(effect.action_type, effect.params)
+                    lines.extend(effect_logs)
+                    if effect.action_type == "end_dialogue":
+                        should_end = True
+                if should_end:
+                    break
+                if not choice_result.next_step_id:
+                    break
+                current_step = self._dialogue_service.find_step(entry, choice_result.next_step_id)
+                if current_step is None:
+                    lines.append(f"dialogue_choice_failed:next_step_not_found:{choice_result.next_step_id}")
+                    break
         lines.extend(self._apply_recipe_discovery("dialogue_event", resolved.matched_entry_id or npc_id))
         if npc_id in self._workshop_npc_ids:
+            lines.extend(self._advance_workshop_story(npc_id))
             lines.extend(self.workshop_set_bonus_guidance_lines())
             lines.extend(self.workshop_salvage_guidance_lines())
             lines.extend(self.workshop_recipe_lines(npc_id))
             lines.extend(self.workshop_progress_lines())
             lines.extend(self.workshop_equipment_upgrade_lines())
             lines.extend(self.workshop_equipment_salvage_lines())
+        return lines
+
+    def _advance_workshop_story(self, npc_id: str) -> list[str]:
+        if self.quest_session is None:
+            return []
+        lines: list[str] = []
+        matched = self._workshop_story_service.resolve_for_npc(
+            npc_id=npc_id,
+            workshop_level=self.workshop_progress_state.level,
+            world_flags=self.quest_session.world_flags,
+            state=self.workshop_story_state,
+            stage_definitions=self._workshop_story_definitions,
+        )
+        for stage in matched:
+            stage_logs = self._workshop_story_service.apply_stage(
+                stage=stage,
+                state=self.workshop_story_state,
+                world_flags=self.quest_session.world_flags,
+            )
+            lines.extend(stage_logs)
+            for quest_id in stage.unlock_rewards.quest_ids:
+                self.quest_session.world_flags.add(f"flag.workshop.story.quest_unlocked:{quest_id}")
+            for recipe_id in stage.unlock_rewards.recipe_ids:
+                if recipe_id not in self.unlocked_recipe_ids:
+                    self.unlocked_recipe_ids.add(recipe_id)
+                    self.discovered_recipe_ids.add(recipe_id)
+                    lines.append(f"recipe_unlocked:workshop_story:{recipe_id}")
+        lines.extend(self._evaluate_recipe_unlocks())
         return lines
 
     def _run_dialogue_choice_effect(self, action_type: str, params: dict[str, str]) -> list[str]:

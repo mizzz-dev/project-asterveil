@@ -166,6 +166,18 @@
         "quest.ch01.workshop_tonic_order:1"
       ]
     },
+    "workshop_story_state": {
+      "seen_stage_ids": [
+        "workshop.story.yeld.rank1_intro",
+        "workshop.story.luca.rank2_goal"
+      ],
+      "unlocked_quest_ids": [
+        "quest.ch01.workshop_rank3_expedition"
+      ],
+      "unlocked_recipe_ids": [],
+      "unlocked_location_ids": [],
+      "unlocked_field_event_ids": []
+    },
     "equipment_state": {
       "upgrade_levels": {
         "equip.armor.tidebreaker_harness": 1
