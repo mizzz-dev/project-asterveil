@@ -43,6 +43,7 @@ class EndgameRepeatableOrderSliceTest(unittest.TestCase):
             app.travel_to("location.town.astel")
             ready_logs = app.talk_to_npc("npc.astel.workshop_master")
             self.assertTrue(any(line.startswith("endgame_order_started:") for line in ready_logs))
+            self.assertNotIn("order.endgame.tidebreaker_rearm", app.endgame_order_state.ready_to_reaccept_order_ids)
             self.assertGreaterEqual(app.inventory_state["items"].get("item.material.miniboss.guardian_core", 0), reward_before)
 
             app.save_game()
@@ -50,6 +51,7 @@ class EndgameRepeatableOrderSliceTest(unittest.TestCase):
             ok, _ = resumed.continue_game()
             self.assertTrue(ok)
             self.assertIn("order.endgame.tidebreaker_rearm", resumed.endgame_order_state.unlocked_order_ids)
+            self.assertIsNotNone(resumed.endgame_order_state.completion_counts.get("order.endgame.tidebreaker_rearm"))
 
 
 if __name__ == "__main__":
